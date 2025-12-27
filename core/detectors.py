@@ -182,7 +182,7 @@ class AbuseDetector:
         # Identify suspicious IPs
         high_rate = ip_stats[ip_stats['request_rate'] > ip_stats['request_rate'].quantile(0.99)]
         many_404s = ip_stats[ip_stats['not_found_count'] > 100]  # More than 100 404s
-        many_endpoints = ip_stats[ip_stats['unique_endpoints'] > 50]  > 50 unique endpoints
+        many_endpoints = ip_stats[ip_stats['unique_endpoints'] > 50]  # > 50 unique endpoints
         
         suspicious_ips = pd.concat([high_rate, many_404s, many_endpoints]).drop_duplicates()
         
