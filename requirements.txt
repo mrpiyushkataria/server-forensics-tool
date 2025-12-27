@@ -1,0 +1,13 @@
+pandas>=2.0.0
+numpy>=1.24.0
+plotly>=5.14.0
+matplotlib>=3.7.0
+sqlalchemy>=2.0.0
+python-dateutil>=2.8.0
+scikit-learn>=1.3.0
+reportlab>=4.0.0
+flask>=2.3.0  # For future web dashboard
+click>=8.1.0  # For CLI
+tqdm>=4.65.0  # Progress bars
+geoip2>=4.6.0  # IP geolocation
+jupyter>=1.0.0  # For analysis notebooks
