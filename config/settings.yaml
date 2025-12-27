@@ -1,0 +1,23 @@
+analysis:
+  time_window_hours: 48
+  min_request_threshold: 50
+  large_response_bytes: 5242880  # 5MB
+  suspicious_request_rate: 5
+  data_dump_threshold_mb: 50
+
+detection:
+  sql_injection_enabled: true
+  scanner_detection_enabled: true
+  brute_force_detection_enabled: true
+
+output:
+  generate_json: true
+  generate_pdf: true
+  redact_sensitive_data: true
+  output_directory: /tmp/security_reports
+
+patterns:
+  sensitive_endpoints:
+    - /api/admin
+    - /api/database
+    - /internal
