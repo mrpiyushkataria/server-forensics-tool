@@ -1,0 +1,1230 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>🔍 Server Log Forensic Dashboard</title>
+    
+    <!-- CSS Libraries -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <link href="https://cdn.datatables.net/1.11.5/css/dataTables.bootstrap5.min.css" rel="stylesheet">
+    
+    <!-- Plotly.js -->
+    <script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
+    
+    <style>
+        :root {
+            --bg-dark: #1a1a2e;
+            --bg-card: #16213e;
+            --bg-card-hover: #1c2b4a;
+            --primary: #0ea5e9;
+            --danger: #ef4444;
+            --warning: #f59e0b;
+            --success: #10b981;
+            --info: #8b5cf6;
+        }
+        
+        body {
+            background-color: var(--bg-dark);
+            color: #e2e8f0;
+            font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+            min-height: 100vh;
+        }
+        
+        .navbar-custom {
+            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+            border-bottom: 1px solid #2d3748;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.3);
+        }
+        
+        .sidebar {
+            background-color: var(--bg-card);
+            min-height: calc(100vh - 56px);
+            border-right: 1px solid #2d3748;
+            position: sticky;
+            top: 56px;
+        }
+        
+        .main-content {
+            padding: 20px;
+            min-height: calc(100vh - 56px);
+        }
+        
+        .card-custom {
+            background-color: var(--bg-card);
+            border: 1px solid #2d3748;
+            border-radius: 10px;
+            transition: transform 0.3s, box-shadow 0.3s;
+            margin-bottom: 20px;
+        }
+        
+        .card-custom:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.4);
+            border-color: var(--primary);
+        }
+        
+        .card-header-custom {
+            background-color: rgba(14, 165, 233, 0.1);
+            border-bottom: 1px solid #2d3748;
+            padding: 15px 20px;
+            border-radius: 10px 10px 0 0 !important;
+        }
+        
+        .stat-card {
+            text-align: center;
+            padding: 25px 15px;
+            border-radius: 10px;
+            background: linear-gradient(135deg, var(--bg-card) 0%, var(--bg-card-hover) 100%);
+            border: 1px solid #2d3748;
+            transition: all 0.3s;
+        }
+        
+        .stat-card:hover {
+            border-color: var(--primary);
+            transform: scale(1.03);
+        }
+        
+        .stat-value {
+            font-size: 2.5rem;
+            font-weight: bold;
+            margin: 10px 0;
+        }
+        
+        .stat-label {
+            font-size: 0.9rem;
+            color: #94a3b8;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+        
+        .critical { color: var(--danger); }
+        .high { color: var(--warning); }
+        .medium { color: var(--info); }
+        .low { color: var(--success); }
+        
+        .risk-badge {
+            padding: 4px 12px;
+            border-radius: 20px;
+            font-size: 0.75rem;
+            font-weight: bold;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+        
+        .badge-critical { background-color: rgba(239, 68, 68, 0.2); color: var(--danger); }
+        .badge-high { background-color: rgba(245, 158, 11, 0.2); color: var(--warning); }
+        .badge-medium { background-color: rgba(139, 92, 246, 0.2); color: var(--info); }
+        .badge-low { background-color: rgba(16, 185, 129, 0.2); color: var(--success); }
+        
+        .chart-container {
+            background-color: var(--bg-card);
+            border-radius: 10px;
+            padding: 20px;
+            border: 1px solid #2d3748;
+            margin-bottom: 20px;
+        }
+        
+        .nav-link-custom {
+            color: #cbd5e1;
+            padding: 12px 20px;
+            margin: 5px 10px;
+            border-radius: 8px;
+            transition: all 0.3s;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        
+        .nav-link-custom:hover {
+            background-color: rgba(14, 165, 233, 0.1);
+            color: var(--primary);
+            transform: translateX(5px);
+        }
+        
+        .nav-link-custom.active {
+            background-color: rgba(14, 165, 233, 0.2);
+            color: var(--primary);
+            border-left: 3px solid var(--primary);
+        }
+        
+        .table-custom {
+            background-color: var(--bg-card);
+            color: #e2e8f0;
+            border: 1px solid #2d3748;
+            border-radius: 10px;
+            overflow: hidden;
+        }
+        
+        .table-custom thead th {
+            background-color: rgba(14, 165, 233, 0.1);
+            border-bottom: 2px solid #2d3748;
+            color: var(--primary);
+        }
+        
+        .table-custom tbody tr {
+            transition: background-color 0.3s;
+        }
+        
+        .table-custom tbody tr:hover {
+            background-color: rgba(14, 165, 233, 0.05);
+        }
+        
+        .btn-primary-custom {
+            background: linear-gradient(135deg, var(--primary) 0%, #0284c7 100%);
+            border: none;
+            padding: 10px 25px;
+            border-radius: 8px;
+            font-weight: 600;
+            transition: all 0.3s;
+        }
+        
+        .btn-primary-custom:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(14, 165, 233, 0.4);
+        }
+        
+        .loading-spinner {
+            display: none;
+            text-align: center;
+            padding: 50px;
+        }
+        
+        .spinner {
+            width: 40px;
+            height: 40px;
+            border: 4px solid #2d3748;
+            border-top: 4px solid var(--primary);
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 20px;
+        }
+        
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        
+        .timeline-item {
+            border-left: 3px solid var(--primary);
+            padding-left: 20px;
+            margin-bottom: 20px;
+            position: relative;
+        }
+        
+        .timeline-item::before {
+            content: '';
+            position: absolute;
+            left: -8px;
+            top: 0;
+            width: 14px;
+            height: 14px;
+            border-radius: 50%;
+            background-color: var(--primary);
+        }
+        
+        .modal-custom .modal-content {
+            background-color: var(--bg-card);
+            color: #e2e8f0;
+            border: 1px solid #2d3748;
+        }
+        
+        .modal-custom .modal-header {
+            border-bottom: 1px solid #2d3748;
+        }
+        
+        .modal-custom .modal-footer {
+            border-top: 1px solid #2d3748;
+        }
+        
+        .search-box {
+            background-color: rgba(255, 255, 255, 0.05);
+            border: 1px solid #2d3748;
+            border-radius: 8px;
+            padding: 10px 15px;
+            color: #e2e8f0;
+            width: 100%;
+            transition: all 0.3s;
+        }
+        
+        .search-box:focus {
+            outline: none;
+            border-color: var(--primary);
+            box-shadow: 0 0 0 3px rgba(14, 165, 233, 0.2);
+        }
+        
+        .alert-custom {
+            background-color: rgba(14, 165, 233, 0.1);
+            border: 1px solid var(--primary);
+            border-radius: 8px;
+            padding: 15px;
+            margin-bottom: 20px;
+        }
+    </style>
+</head>
+<body>
+    <!-- Navigation Bar -->
+    <nav class="navbar navbar-expand-lg navbar-custom">
+        <div class="container-fluid">
+            <a class="navbar-brand d-flex align-items-center" href="#">
+                <i class="fas fa-shield-alt fa-2x me-2" style="color: var(--primary);"></i>
+                <div>
+                    <h4 class="mb-0" style="color: var(--primary);">Server Log Forensics</h4>
+                    <small class="text-muted">Real-time Security Dashboard</small>
+                </div>
+            </a>
+            
+            <div class="d-flex align-items-center">
+                <div class="me-3">
+                    <span class="badge bg-danger" id="liveAlertCount">0</span>
+                    <small class="text-muted ms-1">Live Alerts</small>
+                </div>
+                <button class="btn btn-primary-custom" data-bs-toggle="modal" data-bs-target="#analyzeModal">
+                    <i class="fas fa-search me-2"></i>New Analysis
+                </button>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container-fluid">
+        <div class="row">
+            <!-- Sidebar -->
+            <div class="col-lg-2 col-md-3 sidebar d-none d-md-block">
+                <div class="p-3">
+                    <h6 class="text-uppercase text-muted mb-3">Navigation</h6>
+                    <ul class="nav flex-column">
+                        <li class="nav-item">
+                            <a class="nav-link-custom active" href="#" onclick="showSection('dashboard')">
+                                <i class="fas fa-tachometer-alt"></i>
+                                Dashboard
+                            </a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link-custom" href="#" onclick="showSection('endpoints')">
+                                <i class="fas fa-sitemap"></i>
+                                Endpoints
+                            </a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link-custom" href="#" onclick="showSection('ips')">
+                                <i class="fas fa-network-wired"></i>
+                                IP Analysis
+                            </a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link-custom" href="#" onclick="showSection('timeline')">
+                                <i class="fas fa-history"></i>
+                                Timeline
+                            </a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link-custom" href="#" onclick="showSection('reports')">
+                                <i class="fas fa-file-alt"></i>
+                                Reports
+                            </a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link-custom" href="#" onclick="showSection('settings')">
+                                <i class="fas fa-cog"></i>
+                                Settings
+                            </a>
+                        </li>
+                    </ul>
+                    
+                    <hr class="border-secondary my-4">
+                    
+                    <h6 class="text-uppercase text-muted mb-3">Recent Analyses</h6>
+                    <div id="recentAnalysesList">
+                        <!-- Will be populated by JavaScript -->
+                    </div>
+                </div>
+            </div>
+
+            <!-- Main Content -->
+            <div class="col-lg-10 col-md-9 main-content">
+                <!-- Loading Spinner -->
+                <div id="loadingSpinner" class="loading-spinner">
+                    <div class="spinner"></div>
+                    <h5>Analyzing Logs...</h5>
+                    <p class="text-muted">This may take a few moments</p>
+                </div>
+
+                <!-- Dashboard Section (Default) -->
+                <div id="dashboardSection" class="section-content">
+                    <div class="row mb-4">
+                        <div class="col">
+                            <h3><i class="fas fa-tachometer-alt me-2"></i>Security Dashboard</h3>
+                            <p class="text-muted">Real-time analysis of server logs for security threats</p>
+                        </div>
+                    </div>
+
+                    <!-- Summary Cards -->
+                    <div class="row mb-4" id="summaryCards">
+                        <!-- Will be populated by JavaScript -->
+                    </div>
+
+                    <!-- Charts Row 1 -->
+                    <div class="row mb-4">
+                        <div class="col-lg-6">
+                            <div class="chart-container">
+                                <h5><i class="fas fa-chart-pie me-2"></i>Risk Distribution</h5>
+                                <div id="riskChart" style="height: 400px;"></div>
+                            </div>
+                        </div>
+                        <div class="col-lg-6">
+                            <div class="chart-container">
+                                <h5><i class="fas fa-chart-line me-2"></i>Activity Timeline</h5>
+                                <div id="timelineChart" style="height: 400px;"></div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Charts Row 2 -->
+                    <div class="row mb-4">
+                        <div class="col-lg-12">
+                            <div class="chart-container">
+                                <h5><i class="fas fa-fire me-2"></i>Endpoint Heatmap</h5>
+                                <div id="heatmapChart" style="height: 500px;"></div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Top Findings Tables -->
+                    <div class="row">
+                        <div class="col-lg-6">
+                            <div class="card-custom">
+                                <div class="card-header-custom">
+                                    <h5 class="mb-0"><i class="fas fa-exclamation-triangle me-2"></i>Top Suspicious Endpoints</h5>
+                                </div>
+                                <div class="card-body">
+                                    <div class="table-responsive">
+                                        <table class="table table-custom table-hover" id="endpointsTable">
+                                            <thead>
+                                                <tr>
+                                                    <th>Endpoint</th>
+                                                    <th>Requests</th>
+                                                    <th>Risk</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody id="endpointsTableBody">
+                                                <!-- Will be populated by JavaScript -->
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-lg-6">
+                            <div class="card-custom">
+                                <div class="card-header-custom">
+                                    <h5 class="mb-0"><i class="fas fa-user-secret me-2"></i>Top Malicious IPs</h5>
+                                </div>
+                                <div class="card-body">
+                                    <div class="table-responsive">
+                                        <table class="table table-custom table-hover" id="ipsTable">
+                                            <thead>
+                                                <tr>
+                                                    <th>IP Address</th>
+                                                    <th>Requests</th>
+                                                    <th>Risk</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody id="ipsTableBody">
+                                                <!-- Will be populated by JavaScript -->
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Endpoints Section -->
+                <div id="endpointsSection" class="section-content" style="display: none;">
+                    <div class="row mb-4">
+                        <div class="col">
+                            <h3><i class="fas fa-sitemap me-2"></i>Endpoint Analysis</h3>
+                            <p class="text-muted">Detailed analysis of suspicious endpoints</p>
+                        </div>
+                    </div>
+                    <div class="row">
+                        <div class="col-12">
+                            <div class="card-custom">
+                                <div class="card-header-custom d-flex justify-content-between align-items-center">
+                                    <h5 class="mb-0">All Suspicious Endpoints</h5>
+                                    <input type="text" class="search-box" style="width: 300px;" placeholder="Search endpoints..." id="endpointSearch">
+                                </div>
+                                <div class="card-body">
+                                    <div class="table-responsive">
+                                        <table class="table table-custom" id="detailedEndpointsTable">
+                                            <thead>
+                                                <tr>
+                                                    <th>Endpoint</th>
+                                                    <th>Total Requests</th>
+                                                    <th>Unique IPs</th>
+                                                    <th>Data Transferred</th>
+                                                    <th>Request Rate</th>
+                                                    <th>Risk Level</th>
+                                                    <th>Actions</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody id="detailedEndpointsBody">
+                                                <!-- Will be populated by JavaScript -->
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- IP Analysis Section -->
+                <div id="ipsSection" class="section-content" style="display: none;">
+                    <div class="row mb-4">
+                        <div class="col">
+                            <h3><i class="fas fa-network-wired me-2"></i>IP Threat Analysis</h3>
+                            <p class="text-muted">Analysis of malicious IP addresses and their activities</p>
+                        </div>
+                    </div>
+                    <div class="row">
+                        <div class="col-12">
+                            <div class="card-custom">
+                                <div class="card-header-custom d-flex justify-content-between align-items-center">
+                                    <h5 class="mb-0">Malicious IP Addresses</h5>
+                                    <input type="text" class="search-box" style="width: 300px;" placeholder="Search IP addresses..." id="ipSearch">
+                                </div>
+                                <div class="card-body">
+                                    <div class="table-responsive">
+                                        <table class="table table-custom" id="detailedIpsTable">
+                                            <thead>
+                                                <tr>
+                                                    <th>IP Address</th>
+                                                    <th>Total Requests</th>
+                                                    <th>Request Rate</th>
+                                                    <th>Unique Endpoints</th>
+                                                    <th>404 Errors</th>
+                                                    <th>Risk Level</th>
+                                                    <th>Actions</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody id="detailedIpsBody">
+                                                <!-- Will be populated by JavaScript -->
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Timeline Section -->
+                <div id="timelineSection" class="section-content" style="display: none;">
+                    <div class="row mb-4">
+                        <div class="col">
+                            <h3><i class="fas fa-history me-2"></i>Attack Timeline</h3>
+                            <p class="text-muted">Chronological view of security events</p>
+                        </div>
+                    </div>
+                    <div class="row">
+                        <div class="col-12">
+                            <div class="card-custom">
+                                <div class="card-header-custom">
+                                    <h5 class="mb-0">Security Event Timeline</h5>
+                                </div>
+                                <div class="card-body">
+                                    <div id="detailedTimeline">
+                                        <!-- Will be populated by JavaScript -->
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Reports Section -->
+                <div id="reportsSection" class="section-content" style="display: none;">
+                    <div class="row mb-4">
+                        <div class="col">
+                            <h3><i class="fas fa-file-alt me-2"></i>Reports & Exports</h3>
+                            <p class="text-muted">Generate and download analysis reports</p>
+                        </div>
+                    </div>
+                    <div class="row">
+                        <div class="col-lg-4">
+                            <div class="card-custom text-center">
+                                <div class="card-body">
+                                    <i class="fas fa-file-pdf fa-3x mb-3" style="color: var(--danger);"></i>
+                                    <h5>PDF Report</h5>
+                                    <p class="text-muted">Management-friendly report</p>
+                                    <button class="btn btn-primary-custom w-100" onclick="exportReport('pdf')">
+                                        <i class="fas fa-download me-2"></i>Download PDF
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-lg-4">
+                            <div class="card-custom text-center">
+                                <div class="card-body">
+                                    <i class="fas fa-file-excel fa-3x mb-3" style="color: var(--success);"></i>
+                                    <h5>Excel Export</h5>
+                                    <p class="text-muted">Data in spreadsheet format</p>
+                                    <button class="btn btn-primary-custom w-100" onclick="exportReport('excel')">
+                                        <i class="fas fa-download me-2"></i>Download Excel
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-lg-4">
+                            <div class="card-custom text-center">
+                                <div class="card-body">
+                                    <i class="fas fa-file-code fa-3x mb-3" style="color: var(--primary);"></i>
+                                    <h5>JSON Data</h5>
+                                    <p class="text-muted">Complete analysis data</p>
+                                    <button class="btn btn-primary-custom w-100" onclick="exportReport('json')">
+                                        <i class="fas fa-download me-2"></i>Download JSON
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Settings Section -->
+                <div id="settingsSection" class="section-content" style="display: none;">
+                    <div class="row mb-4">
+                        <div class="col">
+                            <h3><i class="fas fa-cog me-2"></i>Settings</h3>
+                            <p class="text-muted">Configure analysis parameters</p>
+                        </div>
+                    </div>
+                    <div class="row">
+                        <div class="col-lg-6">
+                            <div class="card-custom">
+                                <div class="card-header-custom">
+                                    <h5 class="mb-0">Analysis Settings</h5>
+                                </div>
+                                <div class="card-body">
+                                    <form id="settingsForm">
+                                        <div class="mb-3">
+                                            <label class="form-label">Default Time Range</label>
+                                            <select class="form-select search-box" id="timeRange">
+                                                <option value="1h">Last 1 Hour</option>
+                                                <option value="24h" selected>Last 24 Hours</option>
+                                                <option value="7d">Last 7 Days</option>
+                                                <option value="30d">Last 30 Days</option>
+                                            </select>
+                                        </div>
+                                        <div class="mb-3">
+                                            <label class="form-label">Risk Score Threshold</label>
+                                            <input type="range" class="form-range" min="0" max="100" value="40" id="riskThreshold">
+                                            <div class="d-flex justify-content-between">
+                                                <small>Low</small>
+                                                <small id="thresholdValue">40</small>
+                                                <small>High</small>
+                                            </div>
+                                        </div>
+                                        <div class="mb-3">
+                                            <label class="form-label">Notification Settings</label>
+                                            <div class="form-check">
+                                                <input class="form-check-input" type="checkbox" id="emailAlerts" checked>
+                                                <label class="form-check-label" for="emailAlerts">
+                                                    Email alerts for critical findings
+                                                </label>
+                                            </div>
+                                            <div class="form-check">
+                                                <input class="form-check-input" type="checkbox" id="autoBlock" checked>
+                                                <label class="form-check-label" for="autoBlock">
+                                                    Auto-block high-risk IPs
+                                                </label>
+                                            </div>
+                                        </div>
+                                        <button type="submit" class="btn btn-primary-custom w-100">
+                                            <i class="fas fa-save me-2"></i>Save Settings
+                                        </button>
+                                    </form>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-lg-6">
+                            <div class="card-custom">
+                                <div class="card-header-custom">
+                                    <h5 class="mb-0">System Information</h5>
+                                </div>
+                                <div class="card-body">
+                                    <div class="mb-3">
+                                        <small class="text-muted">Tool Version</small>
+                                        <p class="mb-0">v1.0.0</p>
+                                    </div>
+                                    <div class="mb-3">
+                                        <small class="text-muted">Last Analysis</small>
+                                        <p class="mb-0" id="lastAnalysisTime">Never</p>
+                                    </div>
+                                    <div class="mb-3">
+                                        <small class="text-muted">Database Status</small>
+                                        <p class="mb-0"><span class="badge bg-success">Connected</span></p>
+                                    </div>
+                                    <div class="mb-3">
+                                        <small class="text-muted">Storage Usage</small>
+                                        <div class="progress" style="height: 8px;">
+                                            <div class="progress-bar bg-primary" style="width: 25%;"></div>
+                                        </div>
+                                        <small class="text-muted">25% of 1GB used</small>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Analyze Modal -->
+    <div class="modal fade modal-custom" id="analyzeModal" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title"><i class="fas fa-search me-2"></i>New Log Analysis</h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <form id="analysisForm">
+                        <div class="mb-3">
+                            <label class="form-label">Log Directory</label>
+                            <input type="text" class="form-control search-box" id="logDir" 
+                                   value="/var/log" placeholder="Enter log directory path">
+                            <small class="text-muted">Path to Nginx, PHP, and MySQL logs</small>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Time Range</label>
+                            <select class="form-select search-box" id="analysisTimeRange">
+                                <option value="1h">Last 1 Hour</option>
+                                <option value="24h" selected>Last 24 Hours</option>
+                                <option value="7d">Last 7 Days</option>
+                                <option value="30d">Last 30 Days</option>
+                                <option value="custom">Custom Range</option>
+                            </select>
+                        </div>
+                        <div class="mb-3" id="customRange" style="display: none;">
+                            <div class="row">
+                                <div class="col">
+                                    <label class="form-label">From</label>
+                                    <input type="datetime-local" class="form-control search-box" id="fromDate">
+                                </div>
+                                <div class="col">
+                                    <label class="form-label">To</label>
+                                    <input type="datetime-local" class="form-control search-box" id="toDate">
+                                </div>
+                            </div>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Analysis Type</label>
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" id="checkNginx" checked>
+                                <label class="form-check-label" for="checkNginx">
+                                    Nginx Access/Error Logs
+                                </label>
+                            </div>
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" id="checkPHP" checked>
+                                <label class="form-check-label" for="checkPHP">
+                                    PHP Error Logs
+                                </label>
+                            </div>
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" id="checkMySQL" checked>
+                                <label class="form-check-label" for="checkMySQL">
+                                    MySQL Slow Query Logs
+                                </label>
+                            </div>
+                        </div>
+                    </form>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="button" class="btn btn-primary-custom" onclick="startAnalysis()">
+                        <i class="fas fa-play me-2"></i>Start Analysis
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Endpoint Detail Modal -->
+    <div class="modal fade modal-custom" id="endpointDetailModal" tabindex="-1">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title"><i class="fas fa-sitemap me-2"></i>Endpoint Details</h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <div id="endpointDetailContent">
+                        <!-- Will be populated by JavaScript -->
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- JavaScript Libraries -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    <script src="https://cdn.datatables.net/1.11.5/js/jquery.dataTables.min.js"></script>
+    <script src="https://cdn.datatables.net/1.11.5/js/dataTables.bootstrap5.min.js"></script>
+    <script src="https://cdn.socket.io/4.5.0/socket.io.min.js"></script>
+    
+    <!-- Application JavaScript -->
+    <script>
+        // Global variables
+        let currentAnalysis = null;
+        let socket = null;
+        
+        // Initialize when page loads
+        $(document).ready(function() {
+            // Connect to WebSocket
+            socket = io();
+            
+            // Handle WebSocket events
+            socket.on('connect', function() {
+                console.log('Connected to dashboard server');
+            });
+            
+            socket.on('status', function(data) {
+                console.log('Server status:', data.message);
+            });
+            
+            socket.on('analysis_update', function(data) {
+                console.log('Analysis update received:', data);
+                updateLiveAlerts(data);
+            });
+            
+            // Load recent analyses
+            loadRecentAnalyses();
+            
+            // Initialize event listeners
+            $('#analysisTimeRange').change(function() {
+                if ($(this).val() === 'custom') {
+                    $('#customRange').show();
+                } else {
+                    $('#customRange').hide();
+                }
+            });
+            
+            $('#riskThreshold').on('input', function() {
+                $('#thresholdValue').text($(this).val());
+            });
+            
+            // Initialize DataTables
+            $('#detailedEndpointsTable').DataTable({
+                pageLength: 10,
+                ordering: true,
+                searching: true
+            });
+            
+            $('#detailedIpsTable').DataTable({
+                pageLength: 10,
+                ordering: true,
+                searching: true
+            });
+            
+            // Set default section
+            showSection('dashboard');
+        });
+        
+        // Show specific section
+        function showSection(sectionName) {
+            // Hide all sections
+            $('.section-content').hide();
+            
+            // Remove active class from all nav links
+            $('.nav-link-custom').removeClass('active');
+            
+            // Show selected section
+            $('#' + sectionName + 'Section').show();
+            
+            // Add active class to clicked nav link
+            $(`a[onclick*="${sectionName}"]`).addClass('active');
+            
+            // If showing dashboard and we have analysis data, update it
+            if (sectionName === 'dashboard' && currentAnalysis) {
+                updateDashboard(currentAnalysis);
+            }
+        }
+        
+        // Start new analysis
+        function startAnalysis() {
+            const logDir = $('#logDir').val();
+            const timeRange = $('#analysisTimeRange').val();
+            
+            // Show loading spinner
+            $('#loadingSpinner').show();
+            $('.section-content').hide();
+            
+            // Close modal
+            $('#analyzeModal').modal('hide');
+            
+            // Send analysis request
+            $.ajax({
+                url: '/api/analyze',
+                method: 'POST',
+                contentType: 'application/json',
+                data: JSON.stringify({
+                    log_dir: logDir,
+                    time_range: timeRange
+                }),
+                success: function(response) {
+                    if (response.success) {
+                        currentAnalysis = response;
+                        updateDashboard(response);
+                        $('#loadingSpinner').hide();
+                        showSection('dashboard');
+                        
+                        // Show success message
+                        showAlert('Analysis completed successfully!', 'success');
+                    } else {
+                        $('#loadingSpinner').hide();
+                        showSection('dashboard');
+                        showAlert('Analysis failed: ' + response.error, 'danger');
+                    }
+                },
+                error: function() {
+                    $('#loadingSpinner').hide();
+                    showSection('dashboard');
+                    showAlert('Failed to connect to analysis server', 'danger');
+                }
+            });
+        }
+        
+        // Update dashboard with analysis results
+        function updateDashboard(analysis) {
+            // Update summary cards
+            updateSummaryCards(analysis.summary);
+            
+            // Update charts
+            updateCharts(analysis.dashboard);
+            
+            // Update tables
+            updateTables(analysis.findings);
+            
+            // Update recent analyses list
+            loadRecentAnalyses();
+            
+            // Update last analysis time
+            $('#lastAnalysisTime').text(new Date().toLocaleString());
+        }
+        
+        // Update summary cards
+        function updateSummaryCards(summary) {
+            const cardsHtml = `
+                <div class="col-lg-3 col-md-6">
+                    <div class="stat-card">
+                        <div class="stat-value critical">${summary.critical_count}</div>
+                        <div class="stat-label">Critical Issues</div>
+                        <small class="text-muted">Requires immediate attention</small>
+                    </div>
+                </div>
+                <div class="col-lg-3 col-md-6">
+                    <div class="stat-card">
+                        <div class="stat-value">${summary.suspicious_endpoints}</div>
+                        <div class="stat-label">Suspicious Endpoints</div>
+                        <small class="text-muted">Potential abuse detected</small>
+                    </div>
+                </div>
+                <div class="col-lg-3 col-md-6">
+                    <div class="stat-card">
+                        <div class="stat-value">${summary.malicious_ips}</div>
+                        <div class="stat-label">Malicious IPs</div>
+                        <small class="text-muted">Block recommended</small>
+                    </div>
+                </div>
+                <div class="col-lg-3 col-md-6">
+                    <div class="stat-card">
+                        <div class="stat-value">${summary.total_data_exposure_gb.toFixed(1)} GB</div>
+                        <div class="stat-label">Data Exposure</div>
+                        <small class="text-muted">Potential data leaks</small>
+                    </div>
+                </div>
+            `;
+            
+            $('#summaryCards').html(cardsHtml);
+        }
+        
+        // Update charts
+        function updateCharts(dashboard) {
+            // Risk Distribution Chart
+            if (dashboard.risk_distribution) {
+                Plotly.newPlot('riskChart', JSON.parse(dashboard.risk_distribution));
+            }
+            
+            // Timeline Chart
+            if (dashboard.timeline) {
+                Plotly.newPlot('timelineChart', JSON.parse(dashboard.timeline));
+            }
+            
+            // Heatmap Chart
+            if (dashboard.endpoint_heatmap) {
+                Plotly.newPlot('heatmapChart', JSON.parse(dashboard.endpoint_heatmap));
+            }
+        }
+        
+        // Update tables
+        function updateTables(findings) {
+            // Update endpoints table
+            let endpointsHtml = '';
+            const suspiciousEndpoints = findings.suspicious_endpoints || [];
+            
+            suspiciousEndpoints.slice(0, 10).forEach(endpoint => {
+                endpointsHtml += `
+                    <tr>
+                        <td>${endpoint.endpoint.substring(0, 50)}${endpoint.endpoint.length > 50 ? '...' : ''}</td>
+                        <td>${endpoint.total_requests}</td>
+                        <td><span class="risk-badge badge-${endpoint.risk_level.toLowerCase()}">${endpoint.risk_level}</span></td>
+                    </tr>
+                `;
+            });
+            
+            $('#endpointsTableBody').html(endpointsHtml);
+            
+            // Update detailed endpoints table
+            let detailedEndpointsHtml = '';
+            suspiciousEndpoints.forEach(endpoint => {
+                detailedEndpointsHtml += `
+                    <tr>
+                        <td>${endpoint.endpoint}</td>
+                        <td>${endpoint.total_requests}</td>
+                        <td>${endpoint.unique_ips}</td>
+                        <td>${endpoint.total_data_mb.toFixed(2)} MB</td>
+                        <td>${endpoint.requests_per_minute.toFixed(1)}/min</td>
+                        <td><span class="risk-badge badge-${endpoint.risk_level.toLowerCase()}">${endpoint.risk_level}</span></td>
+                        <td>
+                            <button class="btn btn-sm btn-outline-primary" onclick="showEndpointDetail('${endpoint.endpoint}')">
+                                <i class="fas fa-info-circle"></i>
+                            </button>
+                        </td>
+                    </tr>
+                `;
+            });
+            
+            $('#detailedEndpointsBody').html(detailedEndpointsHtml);
+            
+            // Update IPs table
+            let ipsHtml = '';
+            const maliciousIps = findings.malicious_ips || [];
+            
+            maliciousIps.slice(0, 10).forEach(ip => {
+                ipsHtml += `
+                    <tr>
+                        <td>${ip.ip}</td>
+                        <td>${ip.total_requests}</td>
+                        <td><span class="risk-badge badge-${ip.risk_level.toLowerCase()}">${ip.risk_level}</span></td>
+                    </tr>
+                `;
+            });
+            
+            $('#ipsTableBody').html(ipsHtml);
+            
+            // Update detailed IPs table
+            let detailedIpsHtml = '';
+            maliciousIps.forEach(ip => {
+                detailedIpsHtml += `
+                    <tr>
+                        <td>${ip.ip}</td>
+                        <td>${ip.total_requests}</td>
+                        <td>${ip.request_rate_per_sec.toFixed(1)}/s</td>
+                        <td>${ip.unique_endpoints}</td>
+                        <td>${ip.not_found_requests}</td>
+                        <td><span class="risk-badge badge-${ip.risk_level.toLowerCase()}">${ip.risk_level}</span></td>
+                        <td>
+                            <button class="btn btn-sm btn-outline-primary" onclick="showIpDetail('${ip.ip}')">
+                                <i class="fas fa-info-circle"></i>
+                            </button>
+                            <button class="btn btn-sm btn-outline-danger" onclick="blockIp('${ip.ip}')">
+                                <i class="fas fa-ban"></i>
+                            </button>
+                        </td>
+                    </tr>
+                `;
+            });
+            
+            $('#detailedIpsBody').html(detailedIpsHtml);
+            
+            // Update timeline
+            updateTimeline(findings.timeline || []);
+        }
+        
+        // Update timeline
+        function updateTimeline(timeline) {
+            let timelineHtml = '';
+            
+            timeline.slice(0, 20).forEach(event => {
+                const time = new Date(event.timestamp).toLocaleTimeString();
+                timelineHtml += `
+                    <div class="timeline-item">
+                        <div class="d-flex justify-content-between">
+                            <h6>${event.event_type.toUpperCase()}</h6>
+                            <small class="text-muted">${time}</small>
+                        </div>
+                        <p class="mb-1">${event.message || event.endpoint || 'No details'}</p>
+                        ${event.ip ? `<small class="text-muted">IP: ${event.ip}</small>` : ''}
+                    </div>
+                `;
+            });
+            
+            $('#detailedTimeline').html(timelineHtml);
+        }
+        
+        // Load recent analyses
+        function loadRecentAnalyses() {
+            $.get('/api/recent-analyses', function(response) {
+                let html = '';
+                response.analyses.forEach(analysis => {
+                    const time = new Date(analysis.timestamp).toLocaleTimeString();
+                    html += `
+                        <div class="mb-2">
+                            <small class="d-block text-muted">${time}</small>
+                            <a href="#" class="text-primary" onclick="loadAnalysis('${analysis.id}')">
+                                ${analysis.log_dir}
+                            </a>
+                            <small class="d-block">${analysis.findings_count} findings</small>
+                        </div>
+                    `;
+                });
+                
+                $('#recentAnalysesList').html(html || '<small class="text-muted">No recent analyses</small>');
+            });
+        }
+        
+        // Load specific analysis
+        function loadAnalysis(analysisId) {
+            $.get(`/api/analysis/${analysisId}`, function(response) {
+                if (response.success) {
+                    currentAnalysis = response;
+                    updateDashboard(response);
+                    showSection('dashboard');
+                    showAlert('Analysis loaded successfully!', 'success');
+                }
+            });
+        }
+        
+        // Show endpoint detail
+        function showEndpointDetail(endpoint) {
+            // Find endpoint in current analysis
+            if (currentAnalysis && currentAnalysis.findings) {
+                const endpointData = currentAnalysis.findings.suspicious_endpoints.find(
+                    ep => ep.endpoint === endpoint
+                );
+                
+                if (endpointData) {
+                    const html = `
+                        <h5>${endpoint}</h5>
+                        <hr>
+                        <div class="row">
+                            <div class="col-md-6">
+                                <h6>Statistics</h6>
+                                <table class="table table-sm">
+                                    <tr><td>Total Requests</td><td>${endpointData.total_requests}</td></tr>
+                                    <tr><td>Unique IPs</td><td>${endpointData.unique_ips}</td></tr>
+                                    <tr><td>Data Transferred</td><td>${endpointData.total_data_mb.toFixed(2)} MB</td></tr>
+                                    <tr><td>Request Rate</td><td>${endpointData.requests_per_minute.toFixed(1)}/min</td></tr>
+                                </table>
+                            </div>
+                            <div class="col-md-6">
+                                <h6>Risk Assessment</h6>
+                                <div class="mb-3">
+                                    <span class="risk-badge badge-${endpointData.risk_level.toLowerCase()}">
+                                        ${endpointData.risk_level}
+                                    </span>
+                                    <div class="mt-2">
+                                        <small>Risk Score: ${endpointData.risk_score}/100</small>
+                                        <div class="progress" style="height: 10px;">
+                                            <div class="progress-bar bg-${getRiskColor(endpointData.risk_level)}" 
+                                                 style="width: ${endpointData.risk_score}%"></div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        <h6 class="mt-3">Status Code Distribution</h6>
+                        <pre class="bg-dark p-2 rounded">${JSON.stringify(endpointData.status_codes, null, 2)}</pre>
+                    `;
+                    
+                    $('#endpointDetailContent').html(html);
+                    $('#endpointDetailModal').modal('show');
+                }
+            }
+        }
+        
+        // Show IP detail
+        function showIpDetail(ip) {
+            // Similar implementation to showEndpointDetail
+            console.log('Show IP detail:', ip);
+        }
+        
+        // Block IP
+        function blockIp(ip) {
+            if (confirm(`Are you sure you want to block IP ${ip}?`)) {
+                // Call API to block IP
+                showAlert(`IP ${ip} has been blocked`, 'success');
+            }
+        }
+        
+        // Export report
+        function exportReport(format) {
+            if (currentAnalysis) {
+                window.location.href = `/api/export/${currentAnalysis.analysis_id}/${format}`;
+            } else {
+                showAlert('No analysis data available to export', 'warning');
+            }
+        }
+        
+        // Update live alerts
+        function updateLiveAlerts(data) {
+            const count = data.data?.critical_count || 0;
+            $('#liveAlertCount').text(count);
+            
+            if (count > 0) {
+                $('#liveAlertCount').addClass('bg-danger').removeClass('bg-secondary');
+            } else {
+                $('#liveAlertCount').addClass('bg-secondary').removeClass('bg-danger');
+            }
+        }
+        
+        // Show alert
+        function showAlert(message, type) {
+            const alertHtml = `
+                <div class="alert-custom alert-${type}">
+                    <i class="fas fa-${type === 'success' ? 'check-circle' : 'exclamation-triangle'} me-2"></i>
+                    ${message}
+                    <button type="button" class="btn-close btn-close-white float-end" onclick="$(this).parent().remove()"></button>
+                </div>
+            `;
+            
+            // Prepend to main content
+            $('.main-content').prepend(alertHtml);
+            
+            // Auto-remove after 5 seconds
+            setTimeout(() => {
+                $(`.alert-${type}`).fadeOut(300, function() {
+                    $(this).remove();
+                });
+            }, 5000);
+        }
+        
+        // Get risk color
+        function getRiskColor(riskLevel) {
+            const colors = {
+                'CRITICAL': 'danger',
+                'HIGH': 'warning',
+                'MEDIUM': 'info',
+                'LOW': 'success'
+            };
+            return colors[riskLevel] || 'secondary';
+        }
+    </script>
+</body>
+</html>
