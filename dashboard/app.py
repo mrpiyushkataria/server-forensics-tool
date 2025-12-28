@@ -1,5 +1,5 @@
 """
-Web Dashboard for Server Log Forensics Tool - WITH UPLOAD SUPPORT
+Web Dashboard for Server Log Forensics Tool - WITH UPLOAD SUPPORT - FIXED VERSION
 """
 
 from flask import Flask, render_template, jsonify, send_file, request
@@ -15,6 +15,7 @@ import shutil
 import zipfile
 import tarfile
 import uuid
+import numpy as np
 
 # Add parent directory to path
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -30,76 +31,192 @@ except ImportError:
     print("Warning: Analysis modules not available. Using mock data.")
     ANALYSIS_MODULES_AVAILABLE = False
     
-    # Mock classes for testing
+    # Mock classes for testing - ENHANCED WITH REALISTIC DATA
     class LogCollector:
         def __init__(self, log_dir, time_range):
             self.log_dir = log_dir
             self.time_range = time_range
             
         def collect_all(self):
-            # Return mock DataFrame
+            # Return realistic mock DataFrame
+            now = datetime.now()
+            timestamps = [now - timedelta(minutes=i*10) for i in range(144)]  # 24 hours
+            
             data = {
-                'timestamp': [datetime.now() - timedelta(hours=i) for i in range(24)],
-                'ip': ['192.168.1.' + str(i) for i in range(1, 25)],
-                'endpoint': ['/api/data', '/admin', '/login', '/download'] * 6,
-                'status_code': [200, 404, 500, 200] * 6,
-                'bytes_sent': [1024, 0, 0, 2048] * 6,
-                'user_agent': ['Mozilla/5.0'] * 24
+                'timestamp': timestamps,
+                'ip': ['192.168.1.' + str(i%254+1) for i in range(144)],
+                'endpoint': ['/api/data', '/admin', '/login', '/download', 
+                            '/api/users', '/wp-admin', '/config', '/.env'] * 18,
+                'status_code': [200, 404, 500, 200, 403, 302, 200, 404] * 18,
+                'body_bytes_sent': [1024, 0, 0, 2048, 512, 0, 1536, 0] * 18,
+                'user_agent': ['Mozilla/5.0', 'sqlmap/1.6', 'curl/7.68', 'python-requests/2.28'] * 36,
+                'request': ['GET /api/data HTTP/1.1', 'POST /login HTTP/1.1'] * 72,
+                'method': ['GET', 'POST'] * 72
             }
-            return pd.DataFrame(data)
+            return {'nginx': pd.DataFrame(data)}
     
     class AbuseDetector:
         def analyze(self, logs):
+            # Realistic mock findings
+            nginx_logs = logs.get('nginx', pd.DataFrame())
+            
+            if not nginx_logs.empty:
+                # Calculate realistic statistics
+                suspicious_endpoints = [
+                    {'endpoint': '/admin', 'total_requests': 150, 'unique_ips': 25, 
+                     'total_data_mb': 45.2, 'requests_per_minute': 12.5, 
+                     'status_codes': {'200': 80, '404': 70}, 'average_response_size': 1024,
+                     'risk_score': 85, 'risk_level': 'CRITICAL'},
+                    {'endpoint': '/api/data', 'total_requests': 300, 'unique_ips': 15,
+                     'total_data_mb': 120.5, 'requests_per_minute': 25.0,
+                     'status_codes': {'200': 280, '500': 20}, 'average_response_size': 2048,
+                     'risk_score': 75, 'risk_level': 'HIGH'},
+                    {'endpoint': '/login', 'total_requests': 200, 'unique_ips': 45,
+                     'total_data_mb': 15.8, 'requests_per_minute': 8.3,
+                     'status_codes': {'200': 120, '403': 80}, 'average_response_size': 512,
+                     'risk_score': 65, 'risk_level': 'MEDIUM'},
+                    {'endpoint': '/wp-admin', 'total_requests': 85, 'unique_ips': 12,
+                     'total_data_mb': 8.2, 'requests_per_minute': 3.5,
+                     'status_codes': {'404': 85}, 'average_response_size': 0,
+                     'risk_score': 90, 'risk_level': 'CRITICAL'}
+                ]
+                
+                malicious_ips = [
+                    {'ip': '192.168.1.100', 'total_requests': 500, 'request_rate_per_sec': 2.5,
+                     'unique_endpoints': 15, 'not_found_requests': 120, 'total_data_mb': 45.8,
+                     'accessed_endpoints_sample': ['/admin', '/login', '/api/data'],
+                     'risk_score': 95, 'risk_level': 'CRITICAL'},
+                    {'ip': '10.0.0.5', 'total_requests': 200, 'request_rate_per_sec': 1.2,
+                     'unique_endpoints': 8, 'not_found_requests': 85, 'total_data_mb': 12.3,
+                     'accessed_endpoints_sample': ['/wp-admin', '/config'],
+                     'risk_score': 80, 'risk_level': 'HIGH'},
+                    {'ip': '172.16.0.23', 'total_requests': 350, 'request_rate_per_sec': 1.8,
+                     'unique_endpoints': 12, 'not_found_requests': 45, 'total_data_mb': 28.7,
+                     'accessed_endpoints_sample': ['/api/users', '/download'],
+                     'risk_score': 70, 'risk_level': 'MEDIUM'}
+                ]
+                
+                data_dumps = [
+                    {'ip': '192.168.1.100', 'endpoint': '/api/data', 'total_data_mb': 120.5,
+                     'request_count': 300, 'average_size_mb': 0.4, 'data_rate_mbps': 1.2,
+                     'time_window_minutes': 120, 'first_request': (now - timedelta(hours=2)).isoformat(),
+                     'last_request': now.isoformat()}
+                ]
+                
+                sqli_attempts = [
+                    {'timestamp': (now - timedelta(hours=1)).isoformat(), 'ip': '192.168.1.100',
+                     'endpoint': '/api/data', 'request': "GET /api/data?q=' OR 1=1-- HTTP/1.1",
+                     'pattern_found': 'or.*1=1', 'status_code': 500, 'user_agent': 'sqlmap/1.6'}
+                ]
+                
+                scanner_activity = [
+                    {'timestamp': (now - timedelta(hours=3)).isoformat(), 'ip': '10.0.0.5',
+                     'user_agent': 'sqlmap/1.6', 'scanner_type': 'sqlmap',
+                     'endpoint': '/wp-admin', 'status_code': 404}
+                ]
+                
+                brute_force = [
+                    {'ip': '172.16.0.23', 'time_window': (now - timedelta(minutes=30)).isoformat(),
+                     'attempt_count': 45, 'endpoints': ['/login', '/auth'],
+                     'status_codes': {'403': 45}, 'user_agents': ['python-requests/2.28']}
+                ]
+            else:
+                suspicious_endpoints = []
+                malicious_ips = []
+                data_dumps = []
+                sqli_attempts = []
+                scanner_activity = []
+                brute_force = []
+            
             return {
-                'suspicious_endpoints': [
-                    {'endpoint': '/admin', 'total_requests': 150, 'risk_level': 'HIGH'},
-                    {'endpoint': '/api/data', 'total_requests': 300, 'risk_level': 'MEDIUM'},
-                ],
-                'malicious_ips': [
-                    {'ip': '192.168.1.100', 'total_requests': 500, 'risk_level': 'CRITICAL'},
-                    {'ip': '10.0.0.5', 'total_requests': 200, 'risk_level': 'HIGH'},
-                ],
-                'total_requests': 1000,
-                'total_data_exposure_mb': 50.5
+                'suspicious_endpoints': suspicious_endpoints,
+                'malicious_ips': malicious_ips,
+                'data_dumps': data_dumps,
+                'sqli_attempts': sqli_attempts,
+                'scanner_activity': scanner_activity,
+                'brute_force': brute_force,
+                'raw_logs': logs,
+                'total_requests': len(nginx_logs) if not nginx_logs.empty else 0,
+                'total_data_exposure_mb': 205.7
             }
     
     class LogCorrelator:
         def correlate(self, findings):
-            findings['timeline'] = [
-                {'timestamp': datetime.now() - timedelta(hours=1), 'event_type': 'suspicious', 'endpoint': '/admin'},
-                {'timestamp': datetime.now() - timedelta(hours=2), 'event_type': 'malicious', 'ip': '192.168.1.100'},
-            ]
+            # Add timeline data
+            timeline = []
+            now = datetime.now()
+            
+            # Add various timeline events
+            for i in range(20):
+                event_time = now - timedelta(hours=i)
+                timeline.append({
+                    'timestamp': event_time.isoformat(),
+                    'event_type': np.random.choice(['sqli', 'scanner', 'brute_force', 'data_dump']),
+                    'ip': f"192.168.1.{np.random.randint(1, 255)}",
+                    'endpoint': np.random.choice(['/admin', '/api/data', '/login', '/wp-admin']),
+                    'message': f"Suspicious activity detected"
+                })
+            
+            findings['timeline'] = timeline
+            findings['correlation_scores'] = {
+                'overall_correlation': 0.75,
+                'attack_chain_confidence': 0.65
+            }
+            
             return findings
     
     class ForensicVisualizer:
         def create_dashboard(self, correlated):
+            # Create realistic mock visualizations
             return {
                 'risk_distribution': json.dumps({
                     'data': [{
-                        'labels': ['CRITICAL', 'HIGH', 'MEDIUM', 'LOW'],
-                        'values': [5, 10, 25, 60],
+                        'labels': ['CRITICAL', 'HIGH', 'MEDIUM', 'LOW', 'INFO'],
+                        'values': [15, 25, 30, 20, 10],
                         'type': 'pie',
-                        'name': 'Risk Distribution'
+                        'name': 'Risk Distribution',
+                        'marker': {
+                            'colors': ['#FF0000', '#FF6B6B', '#FFD93D', '#6BCF7F', '#4D96FF']
+                        }
                     }],
-                    'layout': {'title': 'Risk Distribution'}
+                    'layout': {
+                        'title': 'Risk Distribution',
+                        'paper_bgcolor': '#1a1a2e',
+                        'plot_bgcolor': '#16213e',
+                        'font': {'color': '#e2e8f0'}
+                    }
                 }),
                 'timeline': json.dumps({
                     'data': [{
                         'x': list(range(24)),
                         'y': [10, 15, 20, 18, 25, 30, 35, 40, 35, 30, 25, 20, 15, 10, 5, 10, 15, 20, 25, 30, 35, 30, 25, 20],
                         'type': 'scatter',
-                        'name': 'Requests'
+                        'name': 'Requests',
+                        'line': {'color': '#0ea5e9'}
                     }],
-                    'layout': {'title': 'Activity Timeline'}
+                    'layout': {
+                        'title': 'Activity Timeline',
+                        'paper_bgcolor': '#1a1a2e',
+                        'plot_bgcolor': '#16213e',
+                        'font': {'color': '#e2e8f0'},
+                        'xaxis': {'title': 'Hour'},
+                        'yaxis': {'title': 'Request Count'}
+                    }
                 }),
                 'endpoint_heatmap': json.dumps({
                     'data': [{
                         'z': [[10, 20, 30], [20, 30, 40], [30, 40, 50]],
                         'x': ['/api', '/admin', '/login'],
                         'y': ['GET', 'POST', 'PUT'],
-                        'type': 'heatmap'
+                        'type': 'heatmap',
+                        'colorscale': 'Viridis'
                     }],
-                    'layout': {'title': 'Endpoint Heatmap'}
+                    'layout': {
+                        'title': 'Endpoint Heatmap',
+                        'paper_bgcolor': '#1a1a2e',
+                        'plot_bgcolor': '#16213e',
+                        'font': {'color': '#e2e8f0'}
+                    }
                 })
             }
 
@@ -190,29 +307,25 @@ def process_uploaded_file(file, session_id):
 
 def _create_summary(correlated):
     """Create summary from correlated findings"""
+    # Count critical and high risks
+    critical_count = sum(1 for ep in correlated.get('suspicious_endpoints', []) 
+                        if ep.get('risk_level') == 'CRITICAL')
+    high_count = sum(1 for ep in correlated.get('suspicious_endpoints', []) 
+                     if ep.get('risk_level') == 'HIGH')
+    
     summary = {
-        'critical_count': 0,
-        'high_count': 0,
-        'medium_count': 0,
-        'low_count': 0,
+        'critical_count': critical_count,
+        'high_count': high_count,
+        'medium_count': sum(1 for ep in correlated.get('suspicious_endpoints', []) 
+                           if ep.get('risk_level') == 'MEDIUM'),
+        'low_count': sum(1 for ep in correlated.get('suspicious_endpoints', []) 
+                         if ep.get('risk_level') == 'LOW'),
         'suspicious_endpoints': len(correlated.get('suspicious_endpoints', [])),
         'malicious_ips': len(correlated.get('malicious_ips', [])),
         'total_requests': correlated.get('total_requests', 0),
         'total_data_exposure_gb': correlated.get('total_data_exposure_mb', 0) / 1024,
         'time_period': '24h'
     }
-    
-    # Count risk levels
-    for endpoint in correlated.get('suspicious_endpoints', []):
-        risk = endpoint.get('risk_level', 'LOW')
-        if risk == 'CRITICAL':
-            summary['critical_count'] += 1
-        elif risk == 'HIGH':
-            summary['high_count'] += 1
-        elif risk == 'MEDIUM':
-            summary['medium_count'] += 1
-        else:
-            summary['low_count'] += 1
     
     return summary
 
@@ -284,7 +397,9 @@ def analyze_uploaded_logs():
         collector = LogCollector(log_dir, time_range)
         logs = collector.collect_all()
         
-        if logs.empty:
+        if not logs.get('nginx', pd.DataFrame()).empty:
+            logs_df = logs['nginx']
+        else:
             return jsonify({'success': False, 'error': 'No logs found in uploaded files'})
         
         detector = AbuseDetector()
@@ -313,6 +428,14 @@ def analyze_uploaded_logs():
         # Generate visualizations
         visualizer = ForensicVisualizer()
         dashboard = visualizer.create_dashboard(correlated)
+        
+        # Send WebSocket update
+        socketio.emit('analysis_update', {
+            'analysis_id': analysis_id,
+            'critical_count': _create_summary(correlated)['critical_count'],
+            'status': 'completed',
+            'message': 'Analysis completed successfully'
+        })
         
         return jsonify({
             'success': True,
@@ -388,6 +511,11 @@ def analyze_logs():
         collector = LogCollector(log_dir, time_range)
         logs = collector.collect_all()
         
+        if not logs.get('nginx', pd.DataFrame()).empty:
+            logs_df = logs['nginx']
+        else:
+            return jsonify({'success': False, 'error': 'No logs found in directory'})
+        
         detector = AbuseDetector()
         findings = detector.analyze(logs)
         
@@ -413,6 +541,14 @@ def analyze_logs():
         # Generate visualizations
         visualizer = ForensicVisualizer()
         dashboard = visualizer.create_dashboard(correlated)
+        
+        # Send WebSocket update
+        socketio.emit('analysis_update', {
+            'analysis_id': analysis_id,
+            'critical_count': _create_summary(correlated)['critical_count'],
+            'status': 'completed',
+            'message': 'Analysis completed successfully'
+        })
         
         return jsonify({
             'success': True,
@@ -542,7 +678,7 @@ def handle_analysis_status(data):
 
 if __name__ == '__main__':
     print("=" * 60)
-    print("🚀 Starting Forensic Dashboard with Upload Support")
+    print("🚀 Starting Forensic Dashboard with Upload Support - FIXED VERSION")
     print("=" * 60)
     print("📊 Dashboard URL: http://localhost:5000")
     print("📤 Upload Page: http://localhost:5000/upload")
@@ -551,7 +687,7 @@ if __name__ == '__main__':
     print("=" * 60)
     print(f"📁 Upload folder: {app.config['UPLOAD_FOLDER']}")
     print(f"📁 Temp folder: {app.config['TEMP_FOLDER']}")
-    print(f"⚡ Analysis modules: {'Available' if ANALYSIS_MODULES_AVAILABLE else 'Mock Mode'}")
+    print(f"⚡ Analysis modules: {'Available' if ANALYSIS_MODULES_AVAILABLE else 'Mock Mode (ENHANCED)'}")
     print("=" * 60)
     
     socketio.run(app, debug=True, host='0.0.0.0', port=5000)
