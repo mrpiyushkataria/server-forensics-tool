@@ -109,40 +109,62 @@ def _collect_nginx_logs(self) -> pd.DataFrame:
     print("❌ No Nginx logs found or parsed")
     return pd.DataFrame()
     
-    def _parse_nginx_log(self, content: str) -> List[Dict]:
-        """Parse Nginx combined log format"""
-        
-        logs = []
-        # Nginx combined log format pattern
-        pattern = r'(\S+) - (\S+) \[(.*?)\] "(.*?)" (\d+) (\d+) "(.*?)" "(.*?)"'
-        
-        for line in content.splitlines():
-            match = re.match(pattern, line)
-            if match:
-                ip, _, timestamp_str, request, status, body_bytes_sent, referrer, user_agent = match.groups()
+  def _parse_nginx_log(self, content: str) -> List[Dict]:
+    """Parse Nginx combined log format"""
+    
+    logs = []
+    # Nginx combined log format pattern (more flexible)
+    pattern = r'(\S+) - (\S+) \[(.*?)\] "(.*?)" (\d+) (\d+) "(.*?)" "(.*?)"'
+    
+    for line in content.splitlines():
+        if not line.strip():
+            continue
+            
+        match = re.match(pattern, line)
+        if match:
+            ip, _, timestamp_str, request, status, body_bytes_sent, referrer, user_agent = match.groups()
+            
+            try:
+                # Parse timestamp with multiple format attempts
+                timestamp = None
+                timestamp_formats = [
+                    '%d/%b/%Y:%H:%M:%S %z',
+                    '%d/%b/%Y:%H:%M:%S',
+                    '%Y-%m-%dT%H:%M:%S%z',
+                    '%Y-%m-%d %H:%M:%S'
+                ]
                 
-                try:
-                    # Parse timestamp
-                    timestamp = datetime.strptime(timestamp_str, '%d/%b/%Y:%H:%M:%S %z')
-                    
-                    # Extract endpoint from request
-                    endpoint = self._extract_endpoint(request)
-                    
-                    logs.append({
-                        'timestamp': timestamp,
-                        'ip': ip,
-                        'request': request,
-                        'endpoint': endpoint,
-                        'status': int(status),
-                        'body_bytes_sent': int(body_bytes_sent),
-                        'referrer': referrer if referrer != '-' else None,
-                        'user_agent': user_agent if user_agent != '-' else None,
-                        'source': 'nginx'
-                    })
-                except ValueError as e:
+                for fmt in timestamp_formats:
+                    try:
+                        timestamp = datetime.strptime(timestamp_str, fmt)
+                        if '%z' not in fmt:  # If no timezone in format, assume UTC
+                            timestamp = self.timezone.localize(timestamp)
+                        break
+                    except ValueError:
+                        continue
+                
+                if timestamp is None:
+                    print(f"⚠️  Could not parse timestamp: {timestamp_str}")
                     continue
-        
-        return logs
+                
+                # Extract endpoint from request
+                endpoint = self._extract_endpoint(request)
+                
+                logs.append({
+                    'timestamp': timestamp,
+                    'ip': ip,
+                    'request': request,
+                    'endpoint': endpoint,
+                    'status': int(status),
+                    'body_bytes_sent': int(body_bytes_sent) if body_bytes_sent.isdigit() else 0,
+                    'referrer': referrer if referrer != '-' else None,
+                    'user_agent': user_agent if user_agent != '-' else None,
+                    'source': 'nginx'
+                })
+            except (ValueError, AttributeError) as e:
+                continue
+    
+    return logs
     
     def _extract_endpoint(self, request: str) -> str:
         """Extract endpoint from HTTP request"""
