@@ -1631,29 +1631,67 @@
         }
         
         // Update charts
-        function updateCharts(dashboard) {
-            try {
-                // Risk Distribution Chart
-                if (dashboard.risk_distribution) {
-                    const riskData = JSON.parse(dashboard.risk_distribution);
-                    Plotly.newPlot('riskChart', riskData.data, riskData.layout);
-                }
-                
-                // Timeline Chart
-                if (dashboard.timeline) {
-                    const timelineData = JSON.parse(dashboard.timeline);
-                    Plotly.newPlot('timelineChart', timelineData.data, timelineData.layout);
-                }
-                
-                // Heatmap Chart
-                if (dashboard.endpoint_heatmap) {
-                    const heatmapData = JSON.parse(dashboard.endpoint_heatmap);
-                    Plotly.newPlot('heatmapChart', heatmapData.data, heatmapData.layout);
-                }
-            } catch (error) {
-                console.error('Error updating charts:', error);
+      function updateCharts(dashboard) {
+    try {
+        // Risk Distribution Chart
+        if (dashboard.risk_distribution) {
+            let riskData;
+            if (typeof dashboard.risk_distribution === 'string') {
+                riskData = JSON.parse(dashboard.risk_distribution);
+            } else {
+                riskData = dashboard.risk_distribution;
             }
+            Plotly.newPlot('riskChart', riskData.data, riskData.layout);
         }
+        
+        // Timeline Chart
+        if (dashboard.timeline) {
+            let timelineData;
+            if (typeof dashboard.timeline === 'string') {
+                timelineData = JSON.parse(dashboard.timeline);
+            } else {
+                timelineData = dashboard.timeline;
+            }
+            Plotly.newPlot('timelineChart', timelineData.data, timelineData.layout);
+        }
+        
+        // Heatmap Chart
+        if (dashboard.endpoint_heatmap) {
+            let heatmapData;
+            if (typeof dashboard.endpoint_heatmap === 'string') {
+                heatmapData = JSON.parse(dashboard.endpoint_heatmap);
+            } else {
+                heatmapData = dashboard.endpoint_heatmap;
+            }
+            Plotly.newPlot('heatmapChart', heatmapData.data, heatmapData.layout);
+        }
+    } catch (error) {
+        console.error('Error updating charts:', error);
+        // Create default charts if parsing fails
+        createDefaultCharts();
+    }
+}
+
+        function createDefaultCharts() {
+    // Create a simple default risk chart
+    const riskData = [{
+        values: [5, 10, 15, 20, 50],
+        labels: ['CRITICAL', 'HIGH', 'MEDIUM', 'LOW', 'INFO'],
+        type: 'pie',
+        marker: {
+            colors: ['#FF0000', '#FF6B6B', '#FFD93D', '#6BCF7F', '#4D96FF']
+        }
+    }];
+    
+    const riskLayout = {
+        title: 'Risk Distribution',
+        paper_bgcolor: '#1a1a2e',
+        plot_bgcolor: '#16213e',
+        font: {color: '#e2e8f0'}
+    };
+    
+    Plotly.newPlot('riskChart', riskData, riskLayout);
+}
         
         // Update tables
         function updateTables(findings) {
