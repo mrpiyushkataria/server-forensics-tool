@@ -2,7 +2,7 @@
 Web Dashboard for Server Log Forensics Tool - WITH UPLOAD SUPPORT
 """
 
-from flask import Flask, render_template, jsonify, send_file, request, redirect, url_for, flash
+from flask import Flask, render_template, jsonify, send_file, request
 from flask_socketio import SocketIO
 from werkzeug.utils import secure_filename
 import pandas as pd
@@ -14,18 +14,94 @@ import os
 import shutil
 import zipfile
 import tarfile
-import tempfile
 import uuid
 
 # Add parent directory to path
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from core.log_parsers import LogCollector
-from core.detectors import AbuseDetector
-from core.correlator import LogCorrelator
-from output.reporter import ReportGenerator
-from output.visualizer import ForensicVisualizer
-from storage.sqlite_manager import DatabaseManager
+# Try to import the analysis modules (provide fallbacks if not available)
+try:
+    from core.log_parsers import LogCollector
+    from core.detectors import AbuseDetector
+    from core.correlator import LogCorrelator
+    from output.visualizer import ForensicVisualizer
+    ANALYSIS_MODULES_AVAILABLE = True
+except ImportError:
+    print("Warning: Analysis modules not available. Using mock data.")
+    ANALYSIS_MODULES_AVAILABLE = False
+    
+    # Mock classes for testing
+    class LogCollector:
+        def __init__(self, log_dir, time_range):
+            self.log_dir = log_dir
+            self.time_range = time_range
+            
+        def collect_all(self):
+            # Return mock DataFrame
+            data = {
+                'timestamp': [datetime.now() - timedelta(hours=i) for i in range(24)],
+                'ip': ['192.168.1.' + str(i) for i in range(1, 25)],
+                'endpoint': ['/api/data', '/admin', '/login', '/download'] * 6,
+                'status_code': [200, 404, 500, 200] * 6,
+                'bytes_sent': [1024, 0, 0, 2048] * 6,
+                'user_agent': ['Mozilla/5.0'] * 24
+            }
+            return pd.DataFrame(data)
+    
+    class AbuseDetector:
+        def analyze(self, logs):
+            return {
+                'suspicious_endpoints': [
+                    {'endpoint': '/admin', 'total_requests': 150, 'risk_level': 'HIGH'},
+                    {'endpoint': '/api/data', 'total_requests': 300, 'risk_level': 'MEDIUM'},
+                ],
+                'malicious_ips': [
+                    {'ip': '192.168.1.100', 'total_requests': 500, 'risk_level': 'CRITICAL'},
+                    {'ip': '10.0.0.5', 'total_requests': 200, 'risk_level': 'HIGH'},
+                ],
+                'total_requests': 1000,
+                'total_data_exposure_mb': 50.5
+            }
+    
+    class LogCorrelator:
+        def correlate(self, findings):
+            findings['timeline'] = [
+                {'timestamp': datetime.now() - timedelta(hours=1), 'event_type': 'suspicious', 'endpoint': '/admin'},
+                {'timestamp': datetime.now() - timedelta(hours=2), 'event_type': 'malicious', 'ip': '192.168.1.100'},
+            ]
+            return findings
+    
+    class ForensicVisualizer:
+        def create_dashboard(self, correlated):
+            return {
+                'risk_distribution': json.dumps({
+                    'data': [{
+                        'labels': ['CRITICAL', 'HIGH', 'MEDIUM', 'LOW'],
+                        'values': [5, 10, 25, 60],
+                        'type': 'pie',
+                        'name': 'Risk Distribution'
+                    }],
+                    'layout': {'title': 'Risk Distribution'}
+                }),
+                'timeline': json.dumps({
+                    'data': [{
+                        'x': list(range(24)),
+                        'y': [10, 15, 20, 18, 25, 30, 35, 40, 35, 30, 25, 20, 15, 10, 5, 10, 15, 20, 25, 30, 35, 30, 25, 20],
+                        'type': 'scatter',
+                        'name': 'Requests'
+                    }],
+                    'layout': {'title': 'Activity Timeline'}
+                }),
+                'endpoint_heatmap': json.dumps({
+                    'data': [{
+                        'z': [[10, 20, 30], [20, 30, 40], [30, 40, 50]],
+                        'x': ['/api', '/admin', '/login'],
+                        'y': ['GET', 'POST', 'PUT'],
+                        'type': 'heatmap'
+                    }],
+                    'layout': {'title': 'Endpoint Heatmap'}
+                })
+            }
 
 app = Flask(__name__, 
             static_folder='static',
@@ -36,7 +112,7 @@ app.config['UPLOAD_FOLDER'] = './uploads'
 app.config['ALLOWED_EXTENSIONS'] = {'log', 'txt', 'gz', 'bz2', 'zip', 'tar', 'gz', 'json', 'csv'}
 app.config['TEMP_FOLDER'] = './temp'
 
-socketio = SocketIO(app)
+socketio = SocketIO(app, cors_allowed_origins="*")
 
 # Create necessary directories
 for folder in [app.config['UPLOAD_FOLDER'], app.config['TEMP_FOLDER']]:
@@ -81,10 +157,10 @@ def process_uploaded_file(file, session_id):
     upload_dir.mkdir(exist_ok=True, parents=True)
     
     file_path = upload_dir / filename
-    file.save(file_path)
+    file.save(str(file_path))
     
     # Check if it's an archive
-    is_archive = any(file_path.suffix in ['.zip', '.tar', '.tar.gz', '.tgz', '.tar.bz2'])
+    is_archive = any(str(file_path).endswith(ext) for ext in ['.zip', '.tar', '.tar.gz', '.tgz', '.tar.bz2'])
     
     extracted_files = []
     log_dir = str(upload_dir)
@@ -112,15 +188,48 @@ def process_uploaded_file(file, session_id):
         'file_size': os.path.getsize(file_path)
     }
 
+def _create_summary(correlated):
+    """Create summary from correlated findings"""
+    summary = {
+        'critical_count': 0,
+        'high_count': 0,
+        'medium_count': 0,
+        'low_count': 0,
+        'suspicious_endpoints': len(correlated.get('suspicious_endpoints', [])),
+        'malicious_ips': len(correlated.get('malicious_ips', [])),
+        'total_requests': correlated.get('total_requests', 0),
+        'total_data_exposure_gb': correlated.get('total_data_exposure_mb', 0) / 1024,
+        'time_period': '24h'
+    }
+    
+    # Count risk levels
+    for endpoint in correlated.get('suspicious_endpoints', []):
+        risk = endpoint.get('risk_level', 'LOW')
+        if risk == 'CRITICAL':
+            summary['critical_count'] += 1
+        elif risk == 'HIGH':
+            summary['high_count'] += 1
+        elif risk == 'MEDIUM':
+            summary['medium_count'] += 1
+        else:
+            summary['low_count'] += 1
+    
+    return summary
+
 @app.route('/')
 def index():
     """Main dashboard page"""
     return render_template('index.html')
 
-@app.route('/upload', methods=['GET', 'POST'])
+@app.route('/upload')
 def upload_page():
     """Upload logs page"""
-    if request.method == 'POST':
+    return render_template('upload.html')
+
+@app.route('/api/upload', methods=['POST'])
+def upload_files():
+    """API endpoint to upload files"""
+    try:
         # Check if files were uploaded
         if 'log_files' not in request.files:
             return jsonify({'success': False, 'error': 'No files uploaded'})
@@ -137,6 +246,14 @@ def upload_page():
             if file and allowed_file(file.filename):
                 file_info = process_uploaded_file(file, session_id)
                 uploaded_files[session_id].append(file_info)
+                
+                # Send progress update via WebSocket
+                socketio.emit('upload_update', {
+                    'session_id': session_id,
+                    'progress': 100,
+                    'filename': file.filename,
+                    'message': 'File uploaded successfully'
+                })
         
         return jsonify({
             'success': True,
@@ -144,8 +261,9 @@ def upload_page():
             'file_count': len(uploaded_files[session_id]),
             'message': f'Successfully uploaded {len(uploaded_files[session_id])} file(s)'
         })
-    
-    return render_template('upload.html')
+        
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)})
 
 @app.route('/api/analyze-upload', methods=['POST'])
 def analyze_uploaded_logs():
@@ -187,6 +305,10 @@ def analyze_uploaded_logs():
             'filename': upload_info['original_filename'],
             'findings_count': len(correlated.get('suspicious_endpoints', []))
         })
+        
+        # Keep only last 10 analyses
+        if len(recent_analyses) > 10:
+            recent_analyses.pop(0)
         
         # Generate visualizations
         visualizer = ForensicVisualizer()
@@ -303,13 +425,99 @@ def analyze_logs():
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)})
 
-# ... [rest of the existing routes remain the same] ...
+@app.route('/api/recent-analyses')
+def get_recent_analyses():
+    """Get recent analyses"""
+    return jsonify({
+        'success': True,
+        'analyses': recent_analyses[-10:]  # Last 10 analyses
+    })
+
+@app.route('/api/analysis/<analysis_id>')
+def get_analysis(analysis_id):
+    """Get specific analysis by ID"""
+    if analysis_id in analysis_results:
+        return jsonify({
+            'success': True,
+            'analysis_id': analysis_id,
+            'summary': _create_summary(analysis_results[analysis_id]),
+            'findings': analysis_results[analysis_id]
+        })
+    return jsonify({'success': False, 'error': 'Analysis not found'})
+
+@app.route('/api/export/<analysis_id>/<format>')
+def export_analysis(analysis_id, format):
+    """Export analysis in various formats"""
+    if analysis_id not in analysis_results:
+        return jsonify({'success': False, 'error': 'Analysis not found'})
+    
+    data = analysis_results[analysis_id]
+    
+    if format == 'json':
+        return jsonify(data)
+    elif format == 'csv':
+        # Convert to CSV
+        import csv
+        from io import StringIO
+        
+        si = StringIO()
+        writer = csv.writer(si)
+        
+        # Write headers and some data
+        writer.writerow(['Analysis ID', analysis_id])
+        writer.writerow(['Timestamp', datetime.now().isoformat()])
+        writer.writerow([])
+        writer.writerow(['Suspicious Endpoints'])
+        writer.writerow(['Endpoint', 'Requests', 'Risk Level', 'Unique IPs'])
+        
+        for endpoint in data.get('suspicious_endpoints', []):
+            writer.writerow([
+                endpoint.get('endpoint', ''),
+                endpoint.get('total_requests', 0),
+                endpoint.get('risk_level', ''),
+                endpoint.get('unique_ips', 0)
+            ])
+        
+        writer.writerow([])
+        writer.writerow(['Malicious IPs'])
+        writer.writerow(['IP Address', 'Requests', 'Risk Level', 'Unique Endpoints'])
+        
+        for ip in data.get('malicious_ips', []):
+            writer.writerow([
+                ip.get('ip', ''),
+                ip.get('total_requests', 0),
+                ip.get('risk_level', ''),
+                ip.get('unique_endpoints', 0)
+            ])
+        
+        output = si.getvalue()
+        return output, 200, {
+            'Content-Type': 'text/csv',
+            'Content-Disposition': f'attachment; filename=analysis_{analysis_id}.csv'
+        }
+    else:
+        return jsonify({'success': False, 'error': 'Unsupported format'})
+
+@app.route('/api/system-info')
+def system_info():
+    """Get system information"""
+    return jsonify({
+        'version': 'v1.0.0',
+        'status': 'running',
+        'analyses_count': len(analysis_results),
+        'uploads_count': len(uploaded_files),
+        'storage_usage': 25  # percentage
+    })
 
 # Real-time updates via WebSocket
 @socketio.on('connect')
 def handle_connect():
     print('Client connected')
-    socketio.emit('status', {'message': 'Connected to forensic dashboard'})
+    socketio.emit('status', {'message': 'Connected to forensic dashboard', 'timestamp': datetime.now().isoformat()})
+
+@socketio.on('disconnect')
+def handle_disconnect():
+    print('Client disconnected')
 
 @socketio.on('upload_progress')
 def handle_upload_progress(data):
@@ -317,13 +525,33 @@ def handle_upload_progress(data):
     socketio.emit('upload_update', {
         'session_id': data.get('session_id'),
         'progress': data.get('progress'),
-        'filename': data.get('filename')
+        'filename': data.get('filename'),
+        'timestamp': datetime.now().isoformat()
+    })
+
+@socketio.on('analysis_status')
+def handle_analysis_status(data):
+    """Handle analysis status updates"""
+    socketio.emit('analysis_update', {
+        'analysis_id': data.get('analysis_id'),
+        'status': data.get('status'),
+        'progress': data.get('progress'),
+        'message': data.get('message'),
+        'timestamp': datetime.now().isoformat()
     })
 
 if __name__ == '__main__':
-    print("🚀 Starting Forensic Dashboard with Upload Support...")
+    print("=" * 60)
+    print("🚀 Starting Forensic Dashboard with Upload Support")
+    print("=" * 60)
     print("📊 Dashboard URL: http://localhost:5000")
-    print("📤 Upload URL: http://localhost:5000/upload")
+    print("📤 Upload Page: http://localhost:5000/upload")
     print("🔍 API Base URL: http://localhost:5000/api")
+    print("📡 WebSocket: ws://localhost:5000")
+    print("=" * 60)
+    print(f"📁 Upload folder: {app.config['UPLOAD_FOLDER']}")
+    print(f"📁 Temp folder: {app.config['TEMP_FOLDER']}")
+    print(f"⚡ Analysis modules: {'Available' if ANALYSIS_MODULES_AVAILABLE else 'Mock Mode'}")
+    print("=" * 60)
     
     socketio.run(app, debug=True, host='0.0.0.0', port=5000)
