@@ -96,16 +96,28 @@ def run_analysis_automatically():
     # Find existing log directory
     log_dir = None
     for path in log_paths:
-        if Path(path).exists():
-            log_dir = path
-            print(f"📁 Found logs at: {log_dir}")
-            break
+        path_obj = Path(path)
+        if path_obj.exists():
+            print(f"📁 Found directory: {path}")
+            # Check if it contains log files
+            log_files = list(path_obj.glob('*.log')) + list(path_obj.glob('access.log*')) + list(path_obj.glob('error.log*'))
+            if log_files:
+                log_dir = path
+                print(f"✅ Found {len(log_files)} log files in: {log_dir}")
+                break
+            else:
+                print(f"⚠️  Directory exists but no log files found: {path}")
     
     if not log_dir:
-        print("⚠️  No log directory found. Using sample mode.")
+        print("⚠️  No log directory with log files found. Using sample mode.")
         log_dir = "./sample_logs"
         Path(log_dir).mkdir(exist_ok=True)
-        # You could create sample logs here
+        # Create sample log file
+        sample_log = log_dir + "/sample_access.log"
+        with open(sample_log, 'w') as f:
+            f.write('127.0.0.1 - - [28/Dec/2024:23:02:15 +0000] "GET /admin HTTP/1.1" 200 512 "-" "Mozilla/5.0"\n')
+            f.write('192.168.1.100 - - [28/Dec/2024:23:02:16 +0000] "GET /api/data HTTP/1.1" 200 1024 "-" "sqlmap/1.0"\n')
+        print(f"📝 Created sample log file: {sample_log}")
     
     # Run analysis
     try:
@@ -114,10 +126,13 @@ def run_analysis_automatically():
         from core.correlator import LogCorrelator
         from output.reporter import ReportGenerator
         
+        print(f"🔍 Starting analysis of: {log_dir}")
         collector = LogCollector(log_dir, '24h')
         logs = collector.collect_all()
         
-        if logs:
+        if logs and not logs.get('nginx', pd.DataFrame()).empty:
+            print(f"✅ Successfully collected {len(logs.get('nginx', pd.DataFrame()))} log entries")
+            
             detector = AbuseDetector()
             findings = detector.analyze(logs)
             
@@ -125,6 +140,7 @@ def run_analysis_automatically():
             correlated = correlator.correlate(findings)
             
             # Generate reports
+            os.makedirs('./reports', exist_ok=True)
             reporter = ReportGenerator('./reports')
             reporter.generate_all(correlated)
             
@@ -138,10 +154,16 @@ def run_analysis_automatically():
             return correlated
         else:
             print("⚠️  No logs found in the directory.")
+            print("   Check file permissions or try:")
+            print("   1. Run with sudo for /var/log access")
+            print("   2. Copy logs to a local directory")
+            print("   3. Use the web interface to upload logs")
             return None
             
     except Exception as e:
         print(f"❌ Error during automatic analysis: {e}")
+        import traceback
+        traceback.print_exc()
         return None
 
 def open_browser():
