@@ -1,0 +1,912 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>📤 Upload Logs - Forensic Analysis</title>
+    
+    <!-- CSS Libraries -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/dropzone@5.9.3/dist/dropzone.min.css" rel="stylesheet">
+    
+    <style>
+        :root {
+            --bg-dark: #1a1a2e;
+            --bg-card: #16213e;
+            --bg-card-hover: #1c2b4a;
+            --primary: #0ea5e9;
+            --danger: #ef4444;
+            --success: #10b981;
+        }
+        
+        body {
+            background-color: var(--bg-dark);
+            color: #e2e8f0;
+            font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+            min-height: 100vh;
+            padding-top: 20px;
+        }
+        
+        .navbar-custom {
+            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+            border-bottom: 1px solid #2d3748;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.3);
+        }
+        
+        .upload-container {
+            max-width: 900px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        
+        .upload-card {
+            background-color: var(--bg-card);
+            border: 2px dashed var(--primary);
+            border-radius: 15px;
+            padding: 40px;
+            text-align: center;
+            transition: all 0.3s;
+            margin-bottom: 30px;
+        }
+        
+        .upload-card:hover {
+            border-color: var(--success);
+            background-color: rgba(14, 165, 233, 0.05);
+        }
+        
+        .upload-icon {
+            font-size: 4rem;
+            color: var(--primary);
+            margin-bottom: 20px;
+        }
+        
+        .file-list {
+            background-color: var(--bg-card);
+            border-radius: 10px;
+            padding: 20px;
+            margin-top: 20px;
+        }
+        
+        .file-item {
+            background-color: rgba(255, 255, 255, 0.05);
+            border: 1px solid #2d3748;
+            border-radius: 8px;
+            padding: 15px;
+            margin-bottom: 10px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            transition: all 0.3s;
+        }
+        
+        .file-item:hover {
+            border-color: var(--primary);
+            background-color: rgba(14, 165, 233, 0.1);
+        }
+        
+        .file-info {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+        }
+        
+        .file-icon {
+            font-size: 1.5rem;
+            color: var(--primary);
+        }
+        
+        .progress-container {
+            margin: 20px 0;
+            background-color: rgba(255, 255, 255, 0.05);
+            border-radius: 10px;
+            padding: 20px;
+        }
+        
+        .progress-bar {
+            height: 20px;
+            border-radius: 10px;
+            background-color: #2d3748;
+            overflow: hidden;
+            margin: 10px 0;
+        }
+        
+        .progress-fill {
+            height: 100%;
+            background: linear-gradient(90deg, var(--primary), #3b82f6);
+            border-radius: 10px;
+            transition: width 0.3s;
+            width: 0%;
+        }
+        
+        .btn-upload {
+            background: linear-gradient(135deg, var(--primary) 0%, #0284c7 100%);
+            border: none;
+            padding: 12px 30px;
+            border-radius: 8px;
+            font-weight: 600;
+            font-size: 1.1rem;
+            transition: all 0.3s;
+        }
+        
+        .btn-upload:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(14, 165, 233, 0.4);
+        }
+        
+        .btn-secondary-custom {
+            background-color: #4b5563;
+            border: none;
+            padding: 12px 30px;
+            border-radius: 8px;
+            font-weight: 600;
+            transition: all 0.3s;
+        }
+        
+        .btn-secondary-custom:hover {
+            background-color: #6b7280;
+            transform: translateY(-2px);
+        }
+        
+        .dropzone {
+            border: 2px dashed var(--primary) !important;
+            border-radius: 10px !important;
+            background-color: rgba(14, 165, 233, 0.05) !important;
+            padding: 40px !important;
+        }
+        
+        .dropzone .dz-message {
+            color: #e2e8f0 !important;
+            font-size: 1.2rem !important;
+        }
+        
+        .supported-formats {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            justify-content: center;
+            margin-top: 20px;
+        }
+        
+        .format-badge {
+            background-color: rgba(14, 165, 233, 0.2);
+            color: var(--primary);
+            padding: 5px 15px;
+            border-radius: 20px;
+            font-size: 0.9rem;
+            border: 1px solid var(--primary);
+        }
+        
+        .upload-options {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 20px;
+            margin: 30px 0;
+        }
+        
+        .option-card {
+            background-color: var(--bg-card);
+            border: 1px solid #2d3748;
+            border-radius: 10px;
+            padding: 25px;
+            text-align: center;
+            transition: all 0.3s;
+            cursor: pointer;
+        }
+        
+        .option-card:hover {
+            border-color: var(--primary);
+            transform: translateY(-5px);
+            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.3);
+        }
+        
+        .option-card.active {
+            border-color: var(--success);
+            background-color: rgba(16, 185, 129, 0.1);
+        }
+        
+        .option-icon {
+            font-size: 2.5rem;
+            margin-bottom: 15px;
+        }
+        
+        .upload-types {
+            margin-bottom: 30px;
+        }
+        
+        .type-badge {
+            background-color: rgba(139, 92, 246, 0.2);
+            color: #8b5cf6;
+            padding: 5px 15px;
+            border-radius: 20px;
+            font-size: 0.9rem;
+            margin: 0 5px;
+        }
+        
+        .back-link {
+            color: var(--primary);
+            text-decoration: none;
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            margin-bottom: 20px;
+            transition: all 0.3s;
+        }
+        
+        .back-link:hover {
+            color: #3b82f6;
+            transform: translateX(-5px);
+        }
+        
+        .drag-hint {
+            color: #94a3b8;
+            font-size: 0.9rem;
+            margin-top: 10px;
+        }
+    </style>
+</head>
+<body>
+    <!-- Navigation Bar -->
+    <nav class="navbar navbar-expand-lg navbar-custom">
+        <div class="container-fluid">
+            <a class="navbar-brand d-flex align-items-center" href="/">
+                <i class="fas fa-shield-alt fa-2x me-2" style="color: var(--primary);"></i>
+                <div>
+                    <h4 class="mb-0" style="color: var(--primary);">Server Log Forensics</h4>
+                    <small class="text-muted">Log Upload & Analysis</small>
+                </div>
+            </a>
+            
+            <div class="d-flex align-items-center">
+                <a href="/" class="btn btn-secondary-custom">
+                    <i class="fas fa-arrow-left me-2"></i>Back to Dashboard
+                </a>
+            </div>
+        </div>
+    </nav>
+
+    <div class="upload-container">
+        <!-- Upload Options -->
+        <div class="upload-options">
+            <div class="option-card active" id="optionSingle">
+                <div class="option-icon text-primary">
+                    <i class="fas fa-file-upload"></i>
+                </div>
+                <h5>Single File Upload</h5>
+                <p class="text-muted">Upload individual log files</p>
+            </div>
+            
+            <div class="option-card" id="optionMultiple">
+                <div class="option-icon text-success">
+                    <i class="fas fa-folder-open"></i>
+                </div>
+                <h5>Multiple Files</h5>
+                <p class="text-muted">Upload multiple log files at once</p>
+            </div>
+            
+            <div class="option-card" id="optionArchive">
+                <div class="option-icon text-warning">
+                    <i class="fas fa-file-archive"></i>
+                </div>
+                <h5>Archive Upload</h5>
+                <p class="text-muted">Upload ZIP or TAR archives</p>
+            </div>
+            
+            <div class="option-card" id="optionServer">
+                <div class="option-icon text-info">
+                    <i class="fas fa-server"></i>
+                </div>
+                <h5>Server Path</h5>
+                <p class="text-muted">Analyze logs on server directly</p>
+            </div>
+        </div>
+
+        <!-- Upload Area -->
+        <div id="uploadArea">
+            <!-- Single/Multiple File Upload -->
+            <div id="fileUploadSection">
+                <div class="upload-card" id="dropzoneArea">
+                    <div class="upload-icon">
+                        <i class="fas fa-cloud-upload-alt"></i>
+                    </div>
+                    <h3>Drag & Drop Log Files</h3>
+                    <p class="text-muted">or click to browse files</p>
+                    
+                    <form action="/upload" class="dropzone" id="logDropzone">
+                        <div class="dz-message">
+                            <i class="fas fa-cloud-upload-alt fa-3x mb-3"></i><br>
+                            Drop files here or click to upload
+                        </div>
+                    </form>
+                    
+                    <div class="drag-hint">
+                        <i class="fas fa-info-circle me-2"></i>
+                        You can select multiple files at once
+                    </div>
+                </div>
+                
+                <!-- Supported Formats -->
+                <div class="text-center mt-4">
+                    <h5>Supported Formats</h5>
+                    <div class="supported-formats">
+                        <span class="format-badge">.log</span>
+                        <span class="format-badge">.txt</span>
+                        <span class="format-badge">.gz</span>
+                        <span class="format-badge">.bz2</span>
+                        <span class="format-badge">.zip</span>
+                        <span class="format-badge">.tar</span>
+                        <span class="format-badge">.tar.gz</span>
+                        <span class="format-badge">.csv</span>
+                        <span class="format-badge">.json</span>
+                    </div>
+                </div>
+                
+                <!-- File List -->
+                <div class="file-list" id="fileList" style="display: none;">
+                    <h5>Selected Files</h5>
+                    <div id="selectedFiles">
+                        <!-- Files will be listed here -->
+                    </div>
+                </div>
+                
+                <!-- Progress Bar -->
+                <div class="progress-container" id="progressContainer" style="display: none;">
+                    <h5>Upload Progress</h5>
+                    <div class="progress-bar">
+                        <div class="progress-fill" id="progressFill"></div>
+                    </div>
+                    <div class="d-flex justify-content-between">
+                        <span id="progressText">0%</span>
+                        <span id="fileCounter">0/0 files</span>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Server Path Input -->
+            <div id="serverPathSection" style="display: none;">
+                <div class="upload-card">
+                    <div class="upload-icon">
+                        <i class="fas fa-server"></i>
+                    </div>
+                    <h3>Server Log Analysis</h3>
+                    <p class="text-muted">Analyze logs directly from server path</p>
+                    
+                    <div class="mb-3 mt-4">
+                        <label class="form-label">Server Log Directory</label>
+                        <input type="text" class="form-control" id="serverPath" 
+                               placeholder="/var/log/nginx" value="/var/log">
+                        <div class="form-text">Enter the absolute path to your log directory</div>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label class="form-label">Time Range</label>
+                        <select class="form-select" id="serverTimeRange">
+                            <option value="1h">Last 1 Hour</option>
+                            <option value="24h" selected>Last 24 Hours</option>
+                            <option value="7d">Last 7 Days</option>
+                            <option value="30d">Last 30 Days</option>
+                        </select>
+                    </div>
+                    
+                    <button class="btn btn-upload w-100" onclick="analyzeServerLogs()">
+                        <i class="fas fa-search me-2"></i>Analyze Server Logs
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Upload Types -->
+        <div class="upload-types">
+            <h5 class="text-center mb-3">Common Log Types We Analyze</h5>
+            <div class="d-flex flex-wrap justify-content-center">
+                <span class="type-badge">Nginx Access Logs</span>
+                <span class="type-badge">Apache Logs</span>
+                <span class="type-badge">PHP Error Logs</span>
+                <span class="type-badge">MySQL Slow Logs</span>
+                <span class="type-badge">Application Logs</span>
+                <span class="type-badge">Security Logs</span>
+                <span class="type-badge">Firewall Logs</span>
+            </div>
+        </div>
+
+        <!-- Action Buttons -->
+        <div class="text-center mt-4">
+            <button class="btn btn-upload btn-lg" onclick="startAnalysis()" id="analyzeBtn" disabled>
+                <i class="fas fa-play me-2"></i>Start Analysis
+            </button>
+            <button class="btn btn-secondary-custom btn-lg ms-3" onclick="clearUploads()">
+                <i class="fas fa-trash me-2"></i>Clear All
+            </button>
+        </div>
+        
+        <!-- Session Info -->
+        <div class="mt-4 text-center" id="sessionInfo" style="display: none;">
+            <small class="text-muted">Session ID: <span id="currentSession"></span></small>
+        </div>
+    </div>
+
+    <!-- JavaScript Libraries -->
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/dropzone@5.9.3/dist/dropzone.min.js"></script>
+    <script src="https://cdn.socket.io/4.5.0/socket.io.min.js"></script>
+    
+    <script>
+        // Global variables
+        let currentSessionId = null;
+        let uploadedFiles = [];
+        let socket = null;
+        
+        // Initialize Dropzone
+        Dropzone.autoDiscover = false;
+        
+        $(document).ready(function() {
+            // Connect to WebSocket
+            socket = io();
+            
+            // Initialize Dropzone
+            initDropzone();
+            
+            // Setup option click handlers
+            $('#optionSingle').click(() => switchUploadType('file'));
+            $('#optionMultiple').click(() => switchUploadType('file'));
+            $('#optionArchive').click(() => switchUploadType('file'));
+            $('#optionServer').click(() => switchUploadType('server'));
+            
+            // Set default active option
+            switchUploadType('file');
+            
+            // Listen for WebSocket events
+            socket.on('upload_update', function(data) {
+                updateUploadProgress(data);
+            });
+        });
+        
+        function initDropzone() {
+            // Configure Dropzone
+            const dropzone = new Dropzone('#logDropzone', {
+                url: '/upload',
+                paramName: 'log_files',
+                maxFilesize: 100, // MB
+                maxFiles: 50,
+                parallelUploads: 3,
+                uploadMultiple: true,
+                autoProcessQueue: false,
+                addRemoveLinks: true,
+                dictDefaultMessage: '<i class="fas fa-cloud-upload-alt fa-3x"></i><br>Drop files here or click to upload',
+                dictRemoveFile: '<i class="fas fa-times"></i>',
+                dictCancelUpload: '<i class="fas fa-ban"></i>',
+                dictCancelUploadConfirmation: 'Are you sure you want to cancel this upload?',
+                init: function() {
+                    this.on('addedfile', function(file) {
+                        console.log('File added:', file.name);
+                        updateFileList();
+                    });
+                    
+                    this.on('removedfile', function(file) {
+                        console.log('File removed:', file.name);
+                        updateFileList();
+                    });
+                    
+                    this.on('sending', function(file, xhr, formData) {
+                        // Show progress
+                        $('#progressContainer').show();
+                    });
+                    
+                    this.on('success', function(file, response) {
+                        console.log('Upload success:', response);
+                        if (response.success) {
+                            currentSessionId = response.session_id;
+                            $('#currentSession').text(currentSessionId);
+                            $('#sessionInfo').show();
+                            $('#analyzeBtn').prop('disabled', false);
+                            
+                            // Get upload info
+                            $.get(`/api/upload-info/${currentSessionId}`, function(info) {
+                                if (info.success) {
+                                    uploadedFiles = info.files;
+                                    updateFileList();
+                                }
+                            });
+                        }
+                    });
+                    
+                    this.on('error', function(file, errorMessage) {
+                        console.error('Upload error:', errorMessage);
+                        showAlert('Upload failed: ' + errorMessage, 'danger');
+                    });
+                    
+                    this.on('complete', function(file) {
+                        console.log('Upload complete for:', file.name);
+                    });
+                }
+            });
+            
+            window.dropzoneInstance = dropzone;
+        }
+        
+        function switchUploadType(type) {
+            // Update active option
+            $('.option-card').removeClass('active');
+            
+            if (type === 'file') {
+                $('#optionSingle').addClass('active');
+                $('#fileUploadSection').show();
+                $('#serverPathSection').hide();
+            } else if (type === 'server') {
+                $('#optionServer').addClass('active');
+                $('#fileUploadSection').hide();
+                $('#serverPathSection').show();
+            }
+        }
+        
+        function updateFileList() {
+            const files = window.dropzoneInstance.files;
+            const fileList = $('#selectedFiles');
+            
+            if (files.length === 0) {
+                $('#fileList').hide();
+                return;
+            }
+            
+            $('#fileList').show();
+            fileList.empty();
+            
+            let totalSize = 0;
+            
+            files.forEach((file, index) => {
+                const sizeMB = (file.size / (1024 * 1024)).toFixed(2);
+                totalSize += file.size;
+                
+                const fileHtml = `
+                    <div class="file-item">
+                        <div class="file-info">
+                            <div class="file-icon">
+                                <i class="fas fa-file-lines"></i>
+                            </div>
+                            <div>
+                                <h6 class="mb-1">${file.name}</h6>
+                                <small class="text-muted">${sizeMB} MB</small>
+                            </div>
+                        </div>
+                        <div>
+                            <span class="badge bg-primary">${getFileType(file.name)}</span>
+                        </div>
+                    </div>
+                `;
+                
+                fileList.append(fileHtml);
+            });
+            
+            // Update progress text
+            const totalSizeMB = (totalSize / (1024 * 1024)).toFixed(2);
+            $('#fileCounter').text(`${files.length} file(s) · ${totalSizeMB} MB`);
+        }
+        
+        function getFileType(filename) {
+            const ext = filename.split('.').pop().toLowerCase();
+            
+            const typeMap = {
+                'log': 'LOG',
+                'txt': 'TEXT',
+                'gz': 'GZIP',
+                'bz2': 'BZIP2',
+                'zip': 'ZIP',
+                'tar': 'TAR',
+                'csv': 'CSV',
+                'json': 'JSON'
+            };
+            
+            return typeMap[ext] || ext.toUpperCase();
+        }
+        
+        function startAnalysis() {
+            if (!currentSessionId) {
+                showAlert('Please upload files first', 'warning');
+                return;
+            }
+            
+            // Process queue if there are pending uploads
+            if (window.dropzoneInstance.getQueuedFiles().length > 0) {
+                window.dropzoneInstance.processQueue();
+                showAlert('Please wait for uploads to complete', 'info');
+                return;
+            }
+            
+            // Show loading
+            $('#analyzeBtn').html('<i class="fas fa-spinner fa-spin me-2"></i>Analyzing...');
+            $('#analyzeBtn').prop('disabled', true);
+            
+            // Start analysis
+            $.ajax({
+                url: '/api/analyze-upload',
+                method: 'POST',
+                contentType: 'application/json',
+                data: JSON.stringify({
+                    session_id: currentSessionId,
+                    time_range: '24h'
+                }),
+                success: function(response) {
+                    if (response.success) {
+                        showAlert('Analysis started successfully!', 'success');
+                        
+                        // Redirect to dashboard with analysis results
+                        setTimeout(() => {
+                            window.location.href = `/?analysis=${response.analysis_id}`;
+                        }, 2000);
+                    } else {
+                        showAlert('Analysis failed: ' + response.error, 'danger');
+                        $('#analyzeBtn').html('<i class="fas fa-play me-2"></i>Start Analysis');
+                        $('#analyzeBtn').prop('disabled', false);
+                    }
+                },
+                error: function() {
+                    showAlert('Failed to start analysis', 'danger');
+                    $('#analyzeBtn').html('<i class="fas fa-play me-2"></i>Start Analysis');
+                    $('#analyzeBtn').prop('disabled', false);
+                }
+            });
+        }
+        
+        function analyzeServerLogs() {
+            const serverPath = $('#serverPath').val();
+            const timeRange = $('#serverTimeRange').val();
+            
+            if (!serverPath.trim()) {
+                showAlert('Please enter a server path', 'warning');
+                return;
+            }
+            
+            // Show loading
+            const btn = $('#analyzeBtn');
+            btn.html('<i class="fas fa-spinner fa-spin me-2"></i>Analyzing Server Logs...');
+            btn.prop('disabled', true);
+            
+            // Start server analysis
+            $.ajax({
+                url: '/api/analyze',
+                method: 'POST',
+                contentType: 'application/json',
+                data: JSON.stringify({
+                    log_dir: serverPath,
+                    time_range: timeRange
+                }),
+                success: function(response) {
+                    if (response.success) {
+                        showAlert('Server analysis started successfully!', 'success');
+                        
+                        // Redirect to dashboard with analysis results
+                        setTimeout(() => {
+                            window.location.href = `/?analysis=${response.analysis_id}`;
+                        }, 2000);
+                    } else {
+                                               showAlert('Server analysis failed: ' + response.error, 'danger');
+                        btn.html('<i class="fas fa-play me-2"></i>Start Analysis');
+                        btn.prop('disabled', false);
+                    }
+                },
+                error: function(xhr, status, error) {
+                    showAlert('Failed to connect to server: ' + error, 'danger');
+                    btn.html('<i class="fas fa-play me-2"></i>Start Analysis');
+                    btn.prop('disabled', false);
+                }
+            });
+        }
+        
+        function updateUploadProgress(data) {
+            if (data.progress !== undefined) {
+                $('#progressFill').css('width', data.progress + '%');
+                $('#progressText').text(data.progress.toFixed(1) + '%');
+            }
+            
+            if (data.current_file) {
+                $('#fileCounter').text(`Uploading: ${data.current_file}`);
+            }
+            
+            if (data.message) {
+                showAlert(data.message, data.status || 'info');
+            }
+            
+            if (data.completed) {
+                setTimeout(() => {
+                    $('#progressContainer').hide();
+                    $('#progressFill').css('width', '0%');
+                    $('#progressText').text('0%');
+                }, 2000);
+            }
+        }
+        
+        function clearUploads() {
+            if (window.dropzoneInstance) {
+                window.dropzoneInstance.removeAllFiles(true);
+                uploadedFiles = [];
+                currentSessionId = null;
+                $('#fileList').hide();
+                $('#progressContainer').hide();
+                $('#sessionInfo').hide();
+                $('#analyzeBtn').prop('disabled', true);
+                $('#selectedFiles').empty();
+                showAlert('All uploads cleared', 'info');
+            }
+        }
+        
+        function showAlert(message, type) {
+            // Remove any existing alerts
+            $('.custom-alert').remove();
+            
+            // Create alert
+            const alertHtml = `
+                <div class="custom-alert alert alert-${type} alert-dismissible fade show position-fixed" 
+                     style="top: 20px; right: 20px; z-index: 9999; max-width: 400px;">
+                    <i class="fas fa-${getAlertIcon(type)} me-2"></i>
+                    ${message}
+                    <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                </div>
+            `;
+            
+            $('body').append(alertHtml);
+            
+            // Auto remove after 5 seconds
+            setTimeout(() => {
+                $('.custom-alert').alert('close');
+            }, 5000);
+        }
+        
+        function getAlertIcon(type) {
+            switch(type) {
+                case 'success': return 'check-circle';
+                case 'danger': return 'exclamation-triangle';
+                case 'warning': return 'exclamation-circle';
+                case 'info': return 'info-circle';
+                default: return 'info-circle';
+            }
+        }
+        
+        // Drag and drop file highlight
+        $(document).on('dragenter', function(e) {
+            e.preventDefault();
+            e.stopPropagation();
+            $('#dropzoneArea').addClass('drag-over');
+        });
+        
+        $(document).on('dragover', function(e) {
+            e.preventDefault();
+            e.stopPropagation();
+            $('#dropzoneArea').addClass('drag-over');
+        });
+        
+        $(document).on('dragleave', function(e) {
+            e.preventDefault();
+            e.stopPropagation();
+            if (!$(e.target).closest('#dropzoneArea').length) {
+                $('#dropzoneArea').removeClass('drag-over');
+            }
+        });
+        
+        $(document).on('drop', function(e) {
+            e.preventDefault();
+            e.stopPropagation();
+            $('#dropzoneArea').removeClass('drag-over');
+        });
+        
+        // Add CSS for drag-over effect
+        $('<style>')
+            .prop('type', 'text/css')
+            .html(`
+                .drag-over {
+                    border-color: var(--success) !important;
+                    background-color: rgba(16, 185, 129, 0.1) !important;
+                    transform: scale(1.01);
+                    box-shadow: 0 0 20px rgba(16, 185, 129, 0.3);
+                }
+                
+                .custom-alert {
+                    animation: slideInRight 0.3s ease-out;
+                }
+                
+                @keyframes slideInRight {
+                    from {
+                        transform: translateX(100%);
+                        opacity: 0;
+                    }
+                    to {
+                        transform: translateX(0);
+                        opacity: 1;
+                    }
+                }
+                
+                .dz-preview .dz-image {
+                    border-radius: 10px;
+                }
+                
+                .dz-preview .dz-details {
+                    color: #e2e8f0;
+                }
+                
+                .dz-preview .dz-success-mark,
+                .dz-preview .dz-error-mark {
+                    display: none;
+                }
+                
+                .dz-preview .dz-progress {
+                    background-color: #2d3748;
+                    border-radius: 10px;
+                    height: 15px;
+                }
+                
+                .dz-preview .dz-upload {
+                    background: linear-gradient(90deg, var(--primary), #3b82f6);
+                    border-radius: 10px;
+                }
+            `)
+            .appendTo('head');
+        
+        // Keyboard shortcuts
+        $(document).keydown(function(e) {
+            // Ctrl+U to focus upload area
+            if (e.ctrlKey && e.key === 'u') {
+                e.preventDefault();
+                window.dropzoneInstance && window.dropzoneInstance.focus();
+            }
+            
+            // Escape to clear all
+            if (e.key === 'Escape') {
+                clearUploads();
+            }
+            
+            // Ctrl+Enter to start analysis
+            if (e.ctrlKey && e.key === 'Enter') {
+                e.preventDefault();
+                if (!$('#analyzeBtn').prop('disabled')) {
+                    startAnalysis();
+                }
+            }
+        });
+        
+        // File size formatter
+        function formatFileSize(bytes) {
+            if (bytes === 0) return '0 Bytes';
+            const k = 1024;
+            const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+            const i = Math.floor(Math.log(bytes) / Math.log(k));
+            return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+        }
+        
+        // Session management
+        function checkExistingSession() {
+            const sessionId = localStorage.getItem('current_session');
+            if (sessionId) {
+                $.get(`/api/session/${sessionId}`, function(response) {
+                    if (response.success) {
+                        currentSessionId = sessionId;
+                        $('#currentSession').text(sessionId);
+                        $('#sessionInfo').show();
+                        $('#analyzeBtn').prop('disabled', false);
+                        uploadedFiles = response.files || [];
+                        updateFileList();
+                    } else {
+                        localStorage.removeItem('current_session');
+                    }
+                });
+            }
+        }
+        
+        // Initialize session check
+        checkExistingSession();
+        
+        // Save session to localStorage on successful upload
+        socket.on('upload_complete', function(data) {
+            if (data.session_id) {
+                localStorage.setItem('current_session', data.session_id);
+            }
+        });
+        
+        // Handle page unload
+        $(window).on('beforeunload', function() {
+            if (window.dropzoneInstance.getQueuedFiles().length > 0) {
+                return 'You have pending uploads. Are you sure you want to leave?';
+            }
+        });
+    </script>
+</body>
+</html>
