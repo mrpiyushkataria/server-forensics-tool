@@ -243,6 +243,30 @@
             font-size: 0.9rem;
             margin-top: 10px;
         }
+        
+        .alert-custom {
+            background-color: rgba(14, 165, 233, 0.1);
+            border: 1px solid var(--primary);
+            border-radius: 8px;
+            padding: 15px;
+            margin-bottom: 20px;
+            display: none;
+        }
+        
+        .alert-success {
+            background-color: rgba(16, 185, 129, 0.1);
+            border-color: var(--success);
+        }
+        
+        .alert-warning {
+            background-color: rgba(245, 158, 11, 0.1);
+            border-color: #f59e0b;
+        }
+        
+        .alert-danger {
+            background-color: rgba(239, 68, 68, 0.1);
+            border-color: var(--danger);
+        }
     </style>
 </head>
 <body>
@@ -266,6 +290,9 @@
     </nav>
 
     <div class="upload-container">
+        <!-- Alert Container -->
+        <div id="alertContainer"></div>
+
         <!-- Upload Options -->
         <div class="upload-options">
             <div class="option-card active" id="optionSingle">
@@ -436,6 +463,7 @@
         let currentSessionId = null;
         let uploadedFiles = [];
         let socket = null;
+        let isUploading = false;
         
         // Initialize Dropzone
         Dropzone.autoDiscover = false;
@@ -460,6 +488,13 @@
             socket.on('upload_update', function(data) {
                 updateUploadProgress(data);
             });
+            
+            // Check if there's a session ID in URL
+            const urlParams = new URLSearchParams(window.location.search);
+            const sessionId = urlParams.get('session');
+            if (sessionId) {
+                loadSession(sessionId);
+            }
         });
         
         function initDropzone() {
@@ -481,16 +516,24 @@
                     this.on('addedfile', function(file) {
                         console.log('File added:', file.name);
                         updateFileList();
+                        $('#analyzeBtn').prop('disabled', false);
                     });
                     
                     this.on('removedfile', function(file) {
                         console.log('File removed:', file.name);
                         updateFileList();
+                        
+                        // Disable analyze button if no files
+                        if (this.files.length === 0) {
+                            $('#analyzeBtn').prop('disabled', true);
+                        }
                     });
                     
                     this.on('sending', function(file, xhr, formData) {
                         // Show progress
                         $('#progressContainer').show();
+                        isUploading = true;
+                        updateProgress(0, 'Starting upload...');
                     });
                     
                     this.on('success', function(file, response) {
@@ -502,22 +545,43 @@
                             $('#analyzeBtn').prop('disabled', false);
                             
                             // Get upload info
-                            $.get(`/api/upload-info/${currentSessionId}`, function(info) {
-                                if (info.success) {
-                                    uploadedFiles = info.files;
-                                    updateFileList();
-                                }
-                            });
+                            setTimeout(() => {
+                                getUploadInfo(currentSessionId);
+                            }, 500);
                         }
                     });
                     
                     this.on('error', function(file, errorMessage) {
                         console.error('Upload error:', errorMessage);
                         showAlert('Upload failed: ' + errorMessage, 'danger');
+                        isUploading = false;
                     });
                     
                     this.on('complete', function(file) {
                         console.log('Upload complete for:', file.name);
+                        if (this.getUploadingFiles().length === 0 && this.getQueuedFiles().length === 0) {
+                            isUploading = false;
+                            updateProgress(100, 'Upload complete!');
+                        }
+                    });
+                    
+                    this.on('uploadprogress', function(file, progress, bytesSent) {
+                        // Calculate overall progress
+                        const files = this.files;
+                        let totalProgress = 0;
+                        let uploadedCount = 0;
+                        
+                        files.forEach(f => {
+                            if (f.status === 'success') {
+                                totalProgress += 100;
+                                uploadedCount++;
+                            } else if (f === file) {
+                                totalProgress += progress;
+                            }
+                        });
+                        
+                        const avgProgress = Math.round(totalProgress / files.length);
+                        updateProgress(avgProgress, `Uploading ${uploadedCount + 1}/${files.length} files...`);
                     });
                 }
             });
@@ -533,10 +597,12 @@
                 $('#optionSingle').addClass('active');
                 $('#fileUploadSection').show();
                 $('#serverPathSection').hide();
+                $('#analyzeBtn').prop('disabled', window.dropzoneInstance.files.length === 0);
             } else if (type === 'server') {
                 $('#optionServer').addClass('active');
                 $('#fileUploadSection').hide();
                 $('#serverPathSection').show();
+                $('#analyzeBtn').prop('disabled', false);
             }
         }
         
@@ -566,11 +632,13 @@
                             </div>
                             <div>
                                 <h6 class="mb-1">${file.name}</h6>
-                                <small class="text-muted">${sizeMB} MB</small>
+                                <small class="text-muted">${sizeMB} MB • ${getFileType(file.name)}</small>
                             </div>
                         </div>
                         <div>
-                            <span class="badge bg-primary">${getFileType(file.name)}</span>
+                            <span class="badge ${getStatusBadgeClass(file.status)}">
+                                ${getStatusText(file.status)}
+                            </span>
                         </div>
                     </div>
                 `;
@@ -600,8 +668,40 @@
             return typeMap[ext] || ext.toUpperCase();
         }
         
+        function getStatusBadgeClass(status) {
+            switch(status) {
+                case 'success': return 'bg-success';
+                case 'uploading': return 'bg-primary';
+                case 'error': return 'bg-danger';
+                case 'queued': return 'bg-secondary';
+                default: return 'bg-secondary';
+            }
+        }
+        
+        function getStatusText(status) {
+            switch(status) {
+                case 'success': return 'Uploaded';
+                case 'uploading': return 'Uploading';
+                case 'error': return 'Failed';
+                case 'queued': return 'Queued';
+                default: return 'Pending';
+            }
+        }
+        
         function startAnalysis() {
-            if (!currentSessionId) {
+            if (isUploading) {
+                showAlert('Please wait for uploads to complete', 'warning');
+                return;
+            }
+            
+            const isServerMode = $('#serverPathSection').is(':visible');
+            
+            if (isServerMode) {
+                analyzeServerLogs();
+                return;
+            }
+            
+            if (!currentSessionId && window.dropzoneInstance.files.length === 0) {
                 showAlert('Please upload files first', 'warning');
                 return;
             }
@@ -609,7 +709,7 @@
             // Process queue if there are pending uploads
             if (window.dropzoneInstance.getQueuedFiles().length > 0) {
                 window.dropzoneInstance.processQueue();
-                showAlert('Please wait for uploads to complete', 'info');
+                showAlert('Uploading files... Please wait for completion.', 'info');
                 return;
             }
             
@@ -628,22 +728,23 @@
                 }),
                 success: function(response) {
                     if (response.success) {
-                        showAlert('Analysis started successfully!', 'success');
+                        showAlert('Analysis completed successfully! Redirecting to dashboard...', 'success');
+                        
+                        // Store analysis ID in session storage for dashboard
+                        sessionStorage.setItem('lastAnalysisId', response.analysis_id);
                         
                         // Redirect to dashboard with analysis results
                         setTimeout(() => {
                             window.location.href = `/?analysis=${response.analysis_id}`;
-                        }, 2000);
+                        }, 1500);
                     } else {
                         showAlert('Analysis failed: ' + response.error, 'danger');
-                        $('#analyzeBtn').html('<i class="fas fa-play me-2"></i>Start Analysis');
-                        $('#analyzeBtn').prop('disabled', false);
+                        resetAnalyzeButton();
                     }
                 },
-                error: function() {
-                    showAlert('Failed to start analysis', 'danger');
-                    $('#analyzeBtn').html('<i class="fas fa-play me-2"></i>Start Analysis');
-                    $('#analyzeBtn').prop('disabled', false);
+                error: function(xhr, status, error) {
+                    showAlert('Failed to start analysis: ' + error, 'danger');
+                    resetAnalyzeButton();
                 }
             });
         }
@@ -673,240 +774,149 @@
                 }),
                 success: function(response) {
                     if (response.success) {
-                        showAlert('Server analysis started successfully!', 'success');
+                        showAlert('Server analysis completed successfully! Redirecting...', 'success');
+                        
+                        // Store analysis ID in session storage
+                        sessionStorage.setItem('lastAnalysisId', response.analysis_id);
                         
                         // Redirect to dashboard with analysis results
                         setTimeout(() => {
                             window.location.href = `/?analysis=${response.analysis_id}`;
-                        }, 2000);
+                        }, 1500);
                     } else {
-                                               showAlert('Server analysis failed: ' + response.error, 'danger');
-                        btn.html('<i class="fas fa-play me-2"></i>Start Analysis');
-                        btn.prop('disabled', false);
+                        showAlert('Server analysis failed: ' + response.error, 'danger');
+                        resetAnalyzeButton();
                     }
                 },
                 error: function(xhr, status, error) {
-                    showAlert('Failed to connect to server: ' + error, 'danger');
-                    btn.html('<i class="fas fa-play me-2"></i>Start Analysis');
-                    btn.prop('disabled', false);
+                    showAlert('Failed to analyze server logs: ' + error, 'danger');
+                    resetAnalyzeButton();
                 }
             });
         }
         
+        function getUploadInfo(sessionId) {
+            $.get(`/api/upload-info/${sessionId}`, function(info) {
+                if (info.success) {
+                    uploadedFiles = info.files;
+                    updateUploadInfoDisplay(info.files);
+                }
+            }).fail(function() {
+                console.error('Failed to get upload info');
+            });
+        }
+        
+        function updateUploadInfoDisplay(files) {
+            const fileList = $('#selectedFiles');
+            fileList.empty();
+            
+            files.forEach(file => {
+                const fileHtml = `
+                    <div class="file-item">
+                        <div class="file-info">
+                            <div class="file-icon">
+                                <i class="fas fa-file-archive"></i>
+                            </div>
+                            <div>
+                                <h6 class="mb-1">${file.filename}</h6>
+                                <small class="text-muted">${file.size_mb} MB • ${file.is_archive ? 'Archive' : 'Log File'}</small>
+                            </div>
+                        </div>
+                        <div>
+                            <span class="badge bg-success">Uploaded</span>
+                        </div>
+                    </div>
+                `;
+                fileList.append(fileHtml);
+            });
+            
+            $('#fileList').show();
+        }
+        
         function updateUploadProgress(data) {
-            if (data.progress !== undefined) {
-                $('#progressFill').css('width', data.progress + '%');
-                $('#progressText').text(data.progress.toFixed(1) + '%');
-            }
+            if (data.session_id !== currentSessionId) return;
             
-            if (data.current_file) {
-                $('#fileCounter').text(`Uploading: ${data.current_file}`);
-            }
-            
-            if (data.message) {
-                showAlert(data.message, data.status || 'info');
-            }
-            
-            if (data.completed) {
-                setTimeout(() => {
-                    $('#progressContainer').hide();
-                    $('#progressFill').css('width', '0%');
-                    $('#progressText').text('0%');
-                }, 2000);
-            }
+            const progress = data.progress || 0;
+            updateProgress(progress, data.filename ? `Uploading ${data.filename}...` : 'Uploading...');
+        }
+        
+        function updateProgress(progress, message) {
+            $('#progressFill').css('width', progress + '%');
+            $('#progressText').text(progress.toFixed(0) + '% - ' + message);
         }
         
         function clearUploads() {
+            if (currentSessionId) {
+                // Clear server session
+                $.get(`/api/clear-upload/${currentSessionId}`, function(response) {
+                    if (response.success) {
+                        showAlert('Upload session cleared', 'success');
+                    }
+                });
+            }
+            
+            // Clear Dropzone
             if (window.dropzoneInstance) {
                 window.dropzoneInstance.removeAllFiles(true);
-                uploadedFiles = [];
-                currentSessionId = null;
-                $('#fileList').hide();
-                $('#progressContainer').hide();
-                $('#sessionInfo').hide();
-                $('#analyzeBtn').prop('disabled', true);
-                $('#selectedFiles').empty();
-                showAlert('All uploads cleared', 'info');
             }
+            
+            // Reset UI
+            currentSessionId = null;
+            uploadedFiles = [];
+            $('#sessionInfo').hide();
+            $('#fileList').hide();
+            $('#progressContainer').hide();
+            $('#analyzeBtn').prop('disabled', true);
+            resetAnalyzeButton();
+        }
+        
+        function loadSession(sessionId) {
+            $.get(`/api/upload-info/${sessionId}`, function(response) {
+                if (response.success) {
+                    currentSessionId = sessionId;
+                    $('#currentSession').text(sessionId);
+                    $('#sessionInfo').show();
+                    $('#analyzeBtn').prop('disabled', false);
+                    uploadedFiles = response.files;
+                    updateUploadInfoDisplay(response.files);
+                    showAlert('Loaded existing upload session', 'info');
+                }
+            });
         }
         
         function showAlert(message, type) {
-            // Remove any existing alerts
-            $('.custom-alert').remove();
-            
-            // Create alert
             const alertHtml = `
-                <div class="custom-alert alert alert-${type} alert-dismissible fade show position-fixed" 
-                     style="top: 20px; right: 20px; z-index: 9999; max-width: 400px;">
+                <div class="alert-custom alert-${type}">
                     <i class="fas fa-${getAlertIcon(type)} me-2"></i>
                     ${message}
-                    <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                    <button type="button" class="btn-close btn-close-white float-end" onclick="$(this).parent().remove()"></button>
                 </div>
             `;
             
-            $('body').append(alertHtml);
+            $('#alertContainer').html(alertHtml).show();
             
-            // Auto remove after 5 seconds
+            // Auto-remove after 5 seconds
             setTimeout(() => {
-                $('.custom-alert').alert('close');
+                $('#alertContainer').fadeOut(300, function() {
+                    $(this).empty();
+                });
             }, 5000);
         }
         
         function getAlertIcon(type) {
             switch(type) {
                 case 'success': return 'check-circle';
-                case 'danger': return 'exclamation-triangle';
-                case 'warning': return 'exclamation-circle';
+                case 'warning': return 'exclamation-triangle';
+                case 'danger': return 'times-circle';
                 case 'info': return 'info-circle';
                 default: return 'info-circle';
             }
         }
         
-        // Drag and drop file highlight
-        $(document).on('dragenter', function(e) {
-            e.preventDefault();
-            e.stopPropagation();
-            $('#dropzoneArea').addClass('drag-over');
-        });
-        
-        $(document).on('dragover', function(e) {
-            e.preventDefault();
-            e.stopPropagation();
-            $('#dropzoneArea').addClass('drag-over');
-        });
-        
-        $(document).on('dragleave', function(e) {
-            e.preventDefault();
-            e.stopPropagation();
-            if (!$(e.target).closest('#dropzoneArea').length) {
-                $('#dropzoneArea').removeClass('drag-over');
-            }
-        });
-        
-        $(document).on('drop', function(e) {
-            e.preventDefault();
-            e.stopPropagation();
-            $('#dropzoneArea').removeClass('drag-over');
-        });
-        
-        // Add CSS for drag-over effect
-        $('<style>')
-            .prop('type', 'text/css')
-            .html(`
-                .drag-over {
-                    border-color: var(--success) !important;
-                    background-color: rgba(16, 185, 129, 0.1) !important;
-                    transform: scale(1.01);
-                    box-shadow: 0 0 20px rgba(16, 185, 129, 0.3);
-                }
-                
-                .custom-alert {
-                    animation: slideInRight 0.3s ease-out;
-                }
-                
-                @keyframes slideInRight {
-                    from {
-                        transform: translateX(100%);
-                        opacity: 0;
-                    }
-                    to {
-                        transform: translateX(0);
-                        opacity: 1;
-                    }
-                }
-                
-                .dz-preview .dz-image {
-                    border-radius: 10px;
-                }
-                
-                .dz-preview .dz-details {
-                    color: #e2e8f0;
-                }
-                
-                .dz-preview .dz-success-mark,
-                .dz-preview .dz-error-mark {
-                    display: none;
-                }
-                
-                .dz-preview .dz-progress {
-                    background-color: #2d3748;
-                    border-radius: 10px;
-                    height: 15px;
-                }
-                
-                .dz-preview .dz-upload {
-                    background: linear-gradient(90deg, var(--primary), #3b82f6);
-                    border-radius: 10px;
-                }
-            `)
-            .appendTo('head');
-        
-        // Keyboard shortcuts
-        $(document).keydown(function(e) {
-            // Ctrl+U to focus upload area
-            if (e.ctrlKey && e.key === 'u') {
-                e.preventDefault();
-                window.dropzoneInstance && window.dropzoneInstance.focus();
-            }
-            
-            // Escape to clear all
-            if (e.key === 'Escape') {
-                clearUploads();
-            }
-            
-            // Ctrl+Enter to start analysis
-            if (e.ctrlKey && e.key === 'Enter') {
-                e.preventDefault();
-                if (!$('#analyzeBtn').prop('disabled')) {
-                    startAnalysis();
-                }
-            }
-        });
-        
-        // File size formatter
-        function formatFileSize(bytes) {
-            if (bytes === 0) return '0 Bytes';
-            const k = 1024;
-            const sizes = ['Bytes', 'KB', 'MB', 'GB'];
-            const i = Math.floor(Math.log(bytes) / Math.log(k));
-            return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+        function resetAnalyzeButton() {
+            $('#analyzeBtn').html('<i class="fas fa-play me-2"></i>Start Analysis');
+            $('#analyzeBtn').prop('disabled', false);
         }
-        
-        // Session management
-        function checkExistingSession() {
-            const sessionId = localStorage.getItem('current_session');
-            if (sessionId) {
-                $.get(`/api/session/${sessionId}`, function(response) {
-                    if (response.success) {
-                        currentSessionId = sessionId;
-                        $('#currentSession').text(sessionId);
-                        $('#sessionInfo').show();
-                        $('#analyzeBtn').prop('disabled', false);
-                        uploadedFiles = response.files || [];
-                        updateFileList();
-                    } else {
-                        localStorage.removeItem('current_session');
-                    }
-                });
-            }
-        }
-        
-        // Initialize session check
-        checkExistingSession();
-        
-        // Save session to localStorage on successful upload
-        socket.on('upload_complete', function(data) {
-            if (data.session_id) {
-                localStorage.setItem('current_session', data.session_id);
-            }
-        });
-        
-        // Handle page unload
-        $(window).on('beforeunload', function() {
-            if (window.dropzoneInstance.getQueuedFiles().length > 0) {
-                return 'You have pending uploads. Are you sure you want to leave?';
-            }
-        });
     </script>
 </body>
 </html>
