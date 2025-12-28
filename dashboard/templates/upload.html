@@ -8,7 +8,6 @@
     <!-- CSS Libraries -->
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
-    <link href="https://cdn.jsdelivr.net/npm/dropzone@5.9.3/dist/dropzone.min.css" rel="stylesheet">
     
     <style>
         :root {
@@ -148,18 +147,6 @@
             transform: translateY(-2px);
         }
         
-        .dropzone {
-            border: 2px dashed var(--primary) !important;
-            border-radius: 10px !important;
-            background-color: rgba(14, 165, 233, 0.05) !important;
-            padding: 40px !important;
-        }
-        
-        .dropzone .dz-message {
-            color: #e2e8f0 !important;
-            font-size: 1.2rem !important;
-        }
-        
         .supported-formats {
             display: flex;
             flex-wrap: wrap;
@@ -267,6 +254,20 @@
             background-color: rgba(239, 68, 68, 0.1);
             border-color: var(--danger);
         }
+        
+        .upload-area {
+            border: 2px dashed var(--primary);
+            border-radius: 10px;
+            padding: 40px;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+        
+        .upload-area:hover {
+            border-color: var(--success);
+            background-color: rgba(16, 185, 129, 0.05);
+        }
     </style>
 </head>
 <body>
@@ -293,132 +294,61 @@
         <!-- Alert Container -->
         <div id="alertContainer"></div>
 
-        <!-- Upload Options -->
-        <div class="upload-options">
-            <div class="option-card active" id="optionSingle">
-                <div class="option-icon text-primary">
-                    <i class="fas fa-file-upload"></i>
+        <div class="upload-card">
+            <div class="upload-icon">
+                <i class="fas fa-cloud-upload-alt"></i>
+            </div>
+            <h2>Upload Log Files for Analysis</h2>
+            <p class="text-muted">Upload server log files to analyze for security threats and suspicious activities</p>
+            
+            <div class="upload-area mt-4" id="uploadArea">
+                <i class="fas fa-file-upload fa-3x mb-3" style="color: var(--primary);"></i>
+                <h5>Click to Select Files</h5>
+                <p class="text-muted mb-3">or drag and drop files here</p>
+                <input type="file" id="fileInput" multiple style="display: none;" 
+                       accept=".log,.txt,.gz,.bz2,.zip,.tar,.tar.gz,.csv,.json">
+                <button class="btn btn-upload" onclick="document.getElementById('fileInput').click()">
+                    <i class="fas fa-folder-open me-2"></i>Browse Files
+                </button>
+                <div class="mt-3">
+                    <small class="text-muted">Maximum file size: 100MB per file</small>
                 </div>
-                <h5>Single File Upload</h5>
-                <p class="text-muted">Upload individual log files</p>
             </div>
             
-            <div class="option-card" id="optionMultiple">
-                <div class="option-icon text-success">
-                    <i class="fas fa-folder-open"></i>
+            <!-- Supported Formats -->
+            <div class="text-center mt-4">
+                <h5>Supported Formats</h5>
+                <div class="supported-formats">
+                    <span class="format-badge">.log</span>
+                    <span class="format-badge">.txt</span>
+                    <span class="format-badge">.gz</span>
+                    <span class="format-badge">.bz2</span>
+                    <span class="format-badge">.zip</span>
+                    <span class="format-badge">.tar</span>
+                    <span class="format-badge">.tar.gz</span>
+                    <span class="format-badge">.csv</span>
+                    <span class="format-badge">.json</span>
                 </div>
-                <h5>Multiple Files</h5>
-                <p class="text-muted">Upload multiple log files at once</p>
-            </div>
-            
-            <div class="option-card" id="optionArchive">
-                <div class="option-icon text-warning">
-                    <i class="fas fa-file-archive"></i>
-                </div>
-                <h5>Archive Upload</h5>
-                <p class="text-muted">Upload ZIP or TAR archives</p>
-            </div>
-            
-            <div class="option-card" id="optionServer">
-                <div class="option-icon text-info">
-                    <i class="fas fa-server"></i>
-                </div>
-                <h5>Server Path</h5>
-                <p class="text-muted">Analyze logs on server directly</p>
             </div>
         </div>
 
-        <!-- Upload Area -->
-        <div id="uploadArea">
-            <!-- Single/Multiple File Upload -->
-            <div id="fileUploadSection">
-                <div class="upload-card" id="dropzoneArea">
-                    <div class="upload-icon">
-                        <i class="fas fa-cloud-upload-alt"></i>
-                    </div>
-                    <h3>Drag & Drop Log Files</h3>
-                    <p class="text-muted">or click to browse files</p>
-                    
-                    <form action="/upload" class="dropzone" id="logDropzone">
-                        <div class="dz-message">
-                            <i class="fas fa-cloud-upload-alt fa-3x mb-3"></i><br>
-                            Drop files here or click to upload
-                        </div>
-                    </form>
-                    
-                    <div class="drag-hint">
-                        <i class="fas fa-info-circle me-2"></i>
-                        You can select multiple files at once
-                    </div>
-                </div>
-                
-                <!-- Supported Formats -->
-                <div class="text-center mt-4">
-                    <h5>Supported Formats</h5>
-                    <div class="supported-formats">
-                        <span class="format-badge">.log</span>
-                        <span class="format-badge">.txt</span>
-                        <span class="format-badge">.gz</span>
-                        <span class="format-badge">.bz2</span>
-                        <span class="format-badge">.zip</span>
-                        <span class="format-badge">.tar</span>
-                        <span class="format-badge">.tar.gz</span>
-                        <span class="format-badge">.csv</span>
-                        <span class="format-badge">.json</span>
-                    </div>
-                </div>
-                
-                <!-- File List -->
-                <div class="file-list" id="fileList" style="display: none;">
-                    <h5>Selected Files</h5>
-                    <div id="selectedFiles">
-                        <!-- Files will be listed here -->
-                    </div>
-                </div>
-                
-                <!-- Progress Bar -->
-                <div class="progress-container" id="progressContainer" style="display: none;">
-                    <h5>Upload Progress</h5>
-                    <div class="progress-bar">
-                        <div class="progress-fill" id="progressFill"></div>
-                    </div>
-                    <div class="d-flex justify-content-between">
-                        <span id="progressText">0%</span>
-                        <span id="fileCounter">0/0 files</span>
-                    </div>
-                </div>
+        <!-- File List -->
+        <div class="file-list" id="fileList" style="display: none;">
+            <h5>Selected Files</h5>
+            <div id="selectedFiles">
+                <!-- Files will be listed here -->
             </div>
-            
-            <!-- Server Path Input -->
-            <div id="serverPathSection" style="display: none;">
-                <div class="upload-card">
-                    <div class="upload-icon">
-                        <i class="fas fa-server"></i>
-                    </div>
-                    <h3>Server Log Analysis</h3>
-                    <p class="text-muted">Analyze logs directly from server path</p>
-                    
-                    <div class="mb-3 mt-4">
-                        <label class="form-label">Server Log Directory</label>
-                        <input type="text" class="form-control" id="serverPath" 
-                               placeholder="/var/log/nginx" value="/var/log">
-                        <div class="form-text">Enter the absolute path to your log directory</div>
-                    </div>
-                    
-                    <div class="mb-3">
-                        <label class="form-label">Time Range</label>
-                        <select class="form-select" id="serverTimeRange">
-                            <option value="1h">Last 1 Hour</option>
-                            <option value="24h" selected>Last 24 Hours</option>
-                            <option value="7d">Last 7 Days</option>
-                            <option value="30d">Last 30 Days</option>
-                        </select>
-                    </div>
-                    
-                    <button class="btn btn-upload w-100" onclick="analyzeServerLogs()">
-                        <i class="fas fa-search me-2"></i>Analyze Server Logs
-                    </button>
-                </div>
+        </div>
+        
+        <!-- Progress Bar -->
+        <div class="progress-container" id="progressContainer" style="display: none;">
+            <h5>Upload Progress</h5>
+            <div class="progress-bar">
+                <div class="progress-fill" id="progressFill"></div>
+            </div>
+            <div class="d-flex justify-content-between">
+                <span id="progressText">0%</span>
+                <span id="fileCounter">0/0 files</span>
             </div>
         </div>
 
@@ -438,11 +368,11 @@
 
         <!-- Action Buttons -->
         <div class="text-center mt-4">
-            <button class="btn btn-upload btn-lg" onclick="startAnalysis()" id="analyzeBtn" disabled>
+            <button class="btn btn-upload btn-lg" onclick="startUpload()" id="uploadBtn" disabled>
                 <i class="fas fa-play me-2"></i>Start Analysis
             </button>
-            <button class="btn btn-secondary-custom btn-lg ms-3" onclick="clearUploads()">
-                <i class="fas fa-trash me-2"></i>Clear All
+            <button class="btn btn-secondary-custom btn-lg ms-3" onclick="clearFiles()">
+                <i class="fas fa-trash me-2"></i>Clear Files
             </button>
         </div>
         
@@ -455,172 +385,101 @@
     <!-- JavaScript Libraries -->
     <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/dropzone@5.9.3/dist/dropzone.min.js"></script>
     <script src="https://cdn.socket.io/4.5.0/socket.io.min.js"></script>
     
     <script>
         // Global variables
         let currentSessionId = null;
-        let uploadedFiles = [];
+        let selectedFiles = [];
         let socket = null;
-        let isUploading = false;
-        
-        // Initialize Dropzone
-        Dropzone.autoDiscover = false;
         
         $(document).ready(function() {
             // Connect to WebSocket
             socket = io();
             
-            // Initialize Dropzone
-            initDropzone();
-            
-            // Setup option click handlers
-            $('#optionSingle').click(() => switchUploadType('file'));
-            $('#optionMultiple').click(() => switchUploadType('file'));
-            $('#optionArchive').click(() => switchUploadType('file'));
-            $('#optionServer').click(() => switchUploadType('server'));
-            
-            // Set default active option
-            switchUploadType('file');
+            // Setup file upload event listeners
+            setupFileUpload();
             
             // Listen for WebSocket events
             socket.on('upload_update', function(data) {
                 updateUploadProgress(data);
             });
-            
-            // Check if there's a session ID in URL
-            const urlParams = new URLSearchParams(window.location.search);
-            const sessionId = urlParams.get('session');
-            if (sessionId) {
-                loadSession(sessionId);
-            }
         });
         
-        function initDropzone() {
-            // Configure Dropzone
-            const dropzone = new Dropzone('#logDropzone', {
-                url: '/upload',
-                paramName: 'log_files',
-                maxFilesize: 100, // MB
-                maxFiles: 50,
-                parallelUploads: 3,
-                uploadMultiple: true,
-                autoProcessQueue: false,
-                addRemoveLinks: true,
-                dictDefaultMessage: '<i class="fas fa-cloud-upload-alt fa-3x"></i><br>Drop files here or click to upload',
-                dictRemoveFile: '<i class="fas fa-times"></i>',
-                dictCancelUpload: '<i class="fas fa-ban"></i>',
-                dictCancelUploadConfirmation: 'Are you sure you want to cancel this upload?',
-                init: function() {
-                    this.on('addedfile', function(file) {
-                        console.log('File added:', file.name);
-                        updateFileList();
-                        $('#analyzeBtn').prop('disabled', false);
-                    });
-                    
-                    this.on('removedfile', function(file) {
-                        console.log('File removed:', file.name);
-                        updateFileList();
-                        
-                        // Disable analyze button if no files
-                        if (this.files.length === 0) {
-                            $('#analyzeBtn').prop('disabled', true);
-                        }
-                    });
-                    
-                    this.on('sending', function(file, xhr, formData) {
-                        // Show progress
-                        $('#progressContainer').show();
-                        isUploading = true;
-                        updateProgress(0, 'Starting upload...');
-                    });
-                    
-                    this.on('success', function(file, response) {
-                        console.log('Upload success:', response);
-                        if (response.success) {
-                            currentSessionId = response.session_id;
-                            $('#currentSession').text(currentSessionId);
-                            $('#sessionInfo').show();
-                            $('#analyzeBtn').prop('disabled', false);
-                            
-                            // Get upload info
-                            setTimeout(() => {
-                                getUploadInfo(currentSessionId);
-                            }, 500);
-                        }
-                    });
-                    
-                    this.on('error', function(file, errorMessage) {
-                        console.error('Upload error:', errorMessage);
-                        showAlert('Upload failed: ' + errorMessage, 'danger');
-                        isUploading = false;
-                    });
-                    
-                    this.on('complete', function(file) {
-                        console.log('Upload complete for:', file.name);
-                        if (this.getUploadingFiles().length === 0 && this.getQueuedFiles().length === 0) {
-                            isUploading = false;
-                            updateProgress(100, 'Upload complete!');
-                        }
-                    });
-                    
-                    this.on('uploadprogress', function(file, progress, bytesSent) {
-                        // Calculate overall progress
-                        const files = this.files;
-                        let totalProgress = 0;
-                        let uploadedCount = 0;
-                        
-                        files.forEach(f => {
-                            if (f.status === 'success') {
-                                totalProgress += 100;
-                                uploadedCount++;
-                            } else if (f === file) {
-                                totalProgress += progress;
-                            }
-                        });
-                        
-                        const avgProgress = Math.round(totalProgress / files.length);
-                        updateProgress(avgProgress, `Uploading ${uploadedCount + 1}/${files.length} files...`);
-                    });
-                }
+        function setupFileUpload() {
+            const uploadArea = document.getElementById('uploadArea');
+            const fileInput = document.getElementById('fileInput');
+            
+            // Handle click on upload area
+            uploadArea.addEventListener('click', function() {
+                fileInput.click();
             });
             
-            window.dropzoneInstance = dropzone;
-        }
-        
-        function switchUploadType(type) {
-            // Update active option
-            $('.option-card').removeClass('active');
+            // Handle file input change
+            fileInput.addEventListener('change', handleFiles);
             
-            if (type === 'file') {
-                $('#optionSingle').addClass('active');
-                $('#fileUploadSection').show();
-                $('#serverPathSection').hide();
-                $('#analyzeBtn').prop('disabled', window.dropzoneInstance.files.length === 0);
-            } else if (type === 'server') {
-                $('#optionServer').addClass('active');
-                $('#fileUploadSection').hide();
-                $('#serverPathSection').show();
-                $('#analyzeBtn').prop('disabled', false);
+            // Handle drag and drop
+            ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
+                uploadArea.addEventListener(eventName, preventDefaults, false);
+            });
+            
+            ['dragenter', 'dragover'].forEach(eventName => {
+                uploadArea.addEventListener(eventName, highlight, false);
+            });
+            
+            ['dragleave', 'drop'].forEach(eventName => {
+                uploadArea.addEventListener(eventName, unhighlight, false);
+            });
+            
+            uploadArea.addEventListener('drop', handleDrop, false);
+            
+            function preventDefaults(e) {
+                e.preventDefault();
+                e.stopPropagation();
+            }
+            
+            function highlight() {
+                uploadArea.style.borderColor = '#10b981';
+                uploadArea.style.backgroundColor = 'rgba(16, 185, 129, 0.1)';
+            }
+            
+            function unhighlight() {
+                uploadArea.style.borderColor = '#0ea5e9';
+                uploadArea.style.backgroundColor = 'transparent';
+            }
+            
+            function handleDrop(e) {
+                const dt = e.dataTransfer;
+                const files = dt.files;
+                handleFiles({ target: { files: files } });
             }
         }
         
-        function updateFileList() {
-            const files = window.dropzoneInstance.files;
-            const fileList = $('#selectedFiles');
+        function handleFiles(e) {
+            const files = Array.from(e.target.files);
+            selectedFiles = selectedFiles.concat(files);
+            displaySelectedFiles();
             
-            if (files.length === 0) {
-                $('#fileList').hide();
+            // Enable upload button
+            $('#uploadBtn').prop('disabled', false);
+        }
+        
+        function displaySelectedFiles() {
+            const container = $('#selectedFiles');
+            const list = $('#fileList');
+            
+            if (selectedFiles.length === 0) {
+                list.hide();
+                container.empty();
                 return;
             }
             
-            $('#fileList').show();
-            fileList.empty();
+            list.show();
+            container.empty();
             
             let totalSize = 0;
             
-            files.forEach((file, index) => {
+            selectedFiles.forEach((file, index) => {
                 const sizeMB = (file.size / (1024 * 1024)).toFixed(2);
                 totalSize += file.size;
                 
@@ -636,19 +495,18 @@
                             </div>
                         </div>
                         <div>
-                            <span class="badge ${getStatusBadgeClass(file.status)}">
-                                ${getStatusText(file.status)}
-                            </span>
+                            <button type="button" class="btn btn-sm btn-outline-danger" onclick="removeFile(${index})">
+                                <i class="fas fa-times"></i>
+                            </button>
                         </div>
                     </div>
                 `;
                 
-                fileList.append(fileHtml);
+                container.append(fileHtml);
             });
             
-            // Update progress text
             const totalSizeMB = (totalSize / (1024 * 1024)).toFixed(2);
-            $('#fileCounter').text(`${files.length} file(s) · ${totalSizeMB} MB`);
+            $('#fileCounter').text(`${selectedFiles.length} file(s) · ${totalSizeMB} MB`);
         }
         
         function getFileType(filename) {
@@ -668,56 +526,81 @@
             return typeMap[ext] || ext.toUpperCase();
         }
         
-        function getStatusBadgeClass(status) {
-            switch(status) {
-                case 'success': return 'bg-success';
-                case 'uploading': return 'bg-primary';
-                case 'error': return 'bg-danger';
-                case 'queued': return 'bg-secondary';
-                default: return 'bg-secondary';
+        function removeFile(index) {
+            selectedFiles.splice(index, 1);
+            displaySelectedFiles();
+            
+            // Disable upload button if no files
+            if (selectedFiles.length === 0) {
+                $('#uploadBtn').prop('disabled', true);
             }
         }
         
-        function getStatusText(status) {
-            switch(status) {
-                case 'success': return 'Uploaded';
-                case 'uploading': return 'Uploading';
-                case 'error': return 'Failed';
-                case 'queued': return 'Queued';
-                default: return 'Pending';
+        function startUpload() {
+            if (selectedFiles.length === 0) {
+                showAlert('Please select files to upload', 'warning');
+                return;
             }
+            
+            const formData = new FormData();
+            selectedFiles.forEach(file => {
+                formData.append('log_files', file);
+            });
+            
+            // Show progress
+            $('#progressContainer').show();
+            $('#progressFill').css('width', '0%');
+            $('#progressText').text('0% - Starting upload...');
+            $('#uploadBtn').prop('disabled', true).html('<i class="fas fa-spinner fa-spin me-2"></i>Uploading...');
+            
+            // Upload files
+            $.ajax({
+                url: '/api/upload',
+                method: 'POST',
+                data: formData,
+                processData: false,
+                contentType: false,
+                xhr: function() {
+                    const xhr = new XMLHttpRequest();
+                    
+                    xhr.upload.addEventListener('progress', function(e) {
+                        if (e.lengthComputable) {
+                            const percentComplete = Math.round((e.loaded / e.total) * 100);
+                            $('#progressFill').css('width', percentComplete + '%');
+                            $('#progressText').text(`${percentComplete}% - Uploading...`);
+                        }
+                    }, false);
+                    
+                    return xhr;
+                },
+                success: function(response) {
+                    if (response.success) {
+                        currentSessionId = response.session_id;
+                        $('#currentSession').text(currentSessionId);
+                        $('#sessionInfo').show();
+                        
+                        // Start analysis
+                        analyzeUploadedFiles();
+                    } else {
+                        showAlert('Upload failed: ' + response.error, 'danger');
+                        resetUpload();
+                    }
+                },
+                error: function(xhr, status, error) {
+                    showAlert('Upload failed: ' + error, 'danger');
+                    resetUpload();
+                }
+            });
         }
         
-        function startAnalysis() {
-            if (isUploading) {
-                showAlert('Please wait for uploads to complete', 'warning');
+        function analyzeUploadedFiles() {
+            if (!currentSessionId) {
+                showAlert('No upload session found', 'danger');
                 return;
             }
             
-            const isServerMode = $('#serverPathSection').is(':visible');
+            $('#progressText').text('Processing files...');
             
-            if (isServerMode) {
-                analyzeServerLogs();
-                return;
-            }
-            
-            if (!currentSessionId && window.dropzoneInstance.files.length === 0) {
-                showAlert('Please upload files first', 'warning');
-                return;
-            }
-            
-            // Process queue if there are pending uploads
-            if (window.dropzoneInstance.getQueuedFiles().length > 0) {
-                window.dropzoneInstance.processQueue();
-                showAlert('Uploading files... Please wait for completion.', 'info');
-                return;
-            }
-            
-            // Show loading
-            $('#analyzeBtn').html('<i class="fas fa-spinner fa-spin me-2"></i>Analyzing...');
-            $('#analyzeBtn').prop('disabled', true);
-            
-            // Start analysis
             $.ajax({
                 url: '/api/analyze-upload',
                 method: 'POST',
@@ -728,160 +611,45 @@
                 }),
                 success: function(response) {
                     if (response.success) {
+                        $('#progressText').text('100% - Analysis complete!');
+                        
+                        // Show success message
                         showAlert('Analysis completed successfully! Redirecting to dashboard...', 'success');
                         
-                        // Store analysis ID in session storage for dashboard
-                        sessionStorage.setItem('lastAnalysisId', response.analysis_id);
-                        
                         // Redirect to dashboard with analysis results
                         setTimeout(() => {
                             window.location.href = `/?analysis=${response.analysis_id}`;
-                        }, 1500);
+                        }, 2000);
                     } else {
                         showAlert('Analysis failed: ' + response.error, 'danger');
-                        resetAnalyzeButton();
+                        resetUpload();
                     }
                 },
-                error: function(xhr, status, error) {
-                    showAlert('Failed to start analysis: ' + error, 'danger');
-                    resetAnalyzeButton();
+                error: function() {
+                    showAlert('Failed to analyze uploaded files', 'danger');
+                    resetUpload();
                 }
             });
         }
         
-        function analyzeServerLogs() {
-            const serverPath = $('#serverPath').val();
-            const timeRange = $('#serverTimeRange').val();
-            
-            if (!serverPath.trim()) {
-                showAlert('Please enter a server path', 'warning');
-                return;
-            }
-            
-            // Show loading
-            const btn = $('#analyzeBtn');
-            btn.html('<i class="fas fa-spinner fa-spin me-2"></i>Analyzing Server Logs...');
-            btn.prop('disabled', true);
-            
-            // Start server analysis
-            $.ajax({
-                url: '/api/analyze',
-                method: 'POST',
-                contentType: 'application/json',
-                data: JSON.stringify({
-                    log_dir: serverPath,
-                    time_range: timeRange
-                }),
-                success: function(response) {
-                    if (response.success) {
-                        showAlert('Server analysis completed successfully! Redirecting...', 'success');
-                        
-                        // Store analysis ID in session storage
-                        sessionStorage.setItem('lastAnalysisId', response.analysis_id);
-                        
-                        // Redirect to dashboard with analysis results
-                        setTimeout(() => {
-                            window.location.href = `/?analysis=${response.analysis_id}`;
-                        }, 1500);
-                    } else {
-                        showAlert('Server analysis failed: ' + response.error, 'danger');
-                        resetAnalyzeButton();
-                    }
-                },
-                error: function(xhr, status, error) {
-                    showAlert('Failed to analyze server logs: ' + error, 'danger');
-                    resetAnalyzeButton();
-                }
-            });
+        function clearFiles() {
+            selectedFiles = [];
+            $('#fileInput').val('');
+            displaySelectedFiles();
+            $('#uploadBtn').prop('disabled', true);
+            $('#progressContainer').hide();
+            $('#sessionInfo').hide();
         }
         
-        function getUploadInfo(sessionId) {
-            $.get(`/api/upload-info/${sessionId}`, function(info) {
-                if (info.success) {
-                    uploadedFiles = info.files;
-                    updateUploadInfoDisplay(info.files);
-                }
-            }).fail(function() {
-                console.error('Failed to get upload info');
-            });
-        }
-        
-        function updateUploadInfoDisplay(files) {
-            const fileList = $('#selectedFiles');
-            fileList.empty();
-            
-            files.forEach(file => {
-                const fileHtml = `
-                    <div class="file-item">
-                        <div class="file-info">
-                            <div class="file-icon">
-                                <i class="fas fa-file-archive"></i>
-                            </div>
-                            <div>
-                                <h6 class="mb-1">${file.filename}</h6>
-                                <small class="text-muted">${file.size_mb} MB • ${file.is_archive ? 'Archive' : 'Log File'}</small>
-                            </div>
-                        </div>
-                        <div>
-                            <span class="badge bg-success">Uploaded</span>
-                        </div>
-                    </div>
-                `;
-                fileList.append(fileHtml);
-            });
-            
-            $('#fileList').show();
+        function resetUpload() {
+            $('#uploadBtn').prop('disabled', false).html('<i class="fas fa-play me-2"></i>Start Analysis');
         }
         
         function updateUploadProgress(data) {
-            if (data.session_id !== currentSessionId) return;
+            if (!data.progress) return;
             
-            const progress = data.progress || 0;
-            updateProgress(progress, data.filename ? `Uploading ${data.filename}...` : 'Uploading...');
-        }
-        
-        function updateProgress(progress, message) {
-            $('#progressFill').css('width', progress + '%');
-            $('#progressText').text(progress.toFixed(0) + '% - ' + message);
-        }
-        
-        function clearUploads() {
-            if (currentSessionId) {
-                // Clear server session
-                $.get(`/api/clear-upload/${currentSessionId}`, function(response) {
-                    if (response.success) {
-                        showAlert('Upload session cleared', 'success');
-                    }
-                });
-            }
-            
-            // Clear Dropzone
-            if (window.dropzoneInstance) {
-                window.dropzoneInstance.removeAllFiles(true);
-            }
-            
-            // Reset UI
-            currentSessionId = null;
-            uploadedFiles = [];
-            $('#sessionInfo').hide();
-            $('#fileList').hide();
-            $('#progressContainer').hide();
-            $('#analyzeBtn').prop('disabled', true);
-            resetAnalyzeButton();
-        }
-        
-        function loadSession(sessionId) {
-            $.get(`/api/upload-info/${sessionId}`, function(response) {
-                if (response.success) {
-                    currentSessionId = sessionId;
-                    $('#currentSession').text(sessionId);
-                    $('#sessionInfo').show();
-                    $('#analyzeBtn').prop('disabled', false);
-                    uploadedFiles = response.files;
-                    updateUploadInfoDisplay(response.files);
-                    showAlert('Loaded existing upload session', 'info');
-                }
-            });
+            $('#progressFill').css('width', data.progress + '%');
+            $('#progressText').text(`${data.progress}% - ${data.filename || 'Uploading...'}`);
         }
         
         function showAlert(message, type) {
@@ -911,11 +679,6 @@
                 case 'info': return 'info-circle';
                 default: return 'info-circle';
             }
-        }
-        
-        function resetAnalyzeButton() {
-            $('#analyzeBtn').html('<i class="fas fa-play me-2"></i>Start Analysis');
-            $('#analyzeBtn').prop('disabled', false);
         }
     </script>
 </body>
