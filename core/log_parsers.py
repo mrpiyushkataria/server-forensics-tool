@@ -37,46 +37,77 @@ class LogCollector:
         
         return logs
     
-    def _collect_nginx_logs(self) -> pd.DataFrame:
-        """Collect and parse Nginx logs"""
-        
-        nginx_logs = []
-        log_patterns = [
-            'access.log', 'access.log.*', 'access.log.*.gz',
-            'error.log', 'error.log.*', 'error.log.*.gz'
-        ]
-        
-        for pattern in log_patterns:
-            for log_file in self.log_dir.rglob(pattern):
+def _collect_nginx_logs(self) -> pd.DataFrame:
+    """Collect and parse Nginx logs"""
+    
+    nginx_logs = []
+    log_patterns = [
+        'access.log*',  # Changed from ['access.log', 'access.log.*']
+        'error.log*',   # Changed from ['error.log', 'error.log.*']
+    ]
+    
+    print(f"🔍 Looking for Nginx logs in: {self.log_dir}")
+    
+    for pattern in log_patterns:
+        try:
+            # Use glob instead of rglob for simpler pattern matching
+            for log_file in self.log_dir.glob(pattern):
+                if not log_file.is_file():
+                    continue
+                    
+                print(f"📄 Found log file: {log_file}")
+                
                 try:
                     if log_file.suffix == '.gz':
-                        with gzip.open(log_file, 'rt', encoding='utf-8') as f:
+                        with gzip.open(log_file, 'rt', encoding='utf-8', errors='ignore') as f:
                             content = f.read()
                     elif log_file.suffix == '.bz2':
-                        with bz2.open(log_file, 'rt', encoding='utf-8') as f:
+                        with bz2.open(log_file, 'rt', encoding='utf-8', errors='ignore') as f:
                             content = f.read()
                     else:
-                        with open(log_file, 'r', encoding='utf-8') as f:
-                            content = f.read()
+                        # Try to read with appropriate encoding
+                        try:
+                            with open(log_file, 'r', encoding='utf-8', errors='ignore') as f:
+                                content = f.read()
+                        except UnicodeDecodeError:
+                            with open(log_file, 'r', encoding='latin-1', errors='ignore') as f:
+                                content = f.read()
                     
                     # Parse Nginx combined format
                     parsed = self._parse_nginx_log(content)
-                    nginx_logs.extend(parsed)
+                    if parsed:
+                        nginx_logs.extend(parsed)
+                        print(f"✅ Parsed {len(parsed)} entries from {log_file.name}")
                     
+                except PermissionError as e:
+                    print(f"⚠️  Permission denied: {log_file}")
+                    continue
                 except Exception as e:
-                    print(f"Warning: Could not parse {log_file}: {e}")
+                    print(f"⚠️  Could not parse {log_file}: {e}")
+                    continue
+                    
+        except Exception as e:
+            print(f"⚠️  Error searching for pattern {pattern}: {e}")
+            continue
+    
+    if nginx_logs:
+        df = pd.DataFrame(nginx_logs)
+        print(f"📊 Collected {len(df)} log entries")
         
-        if nginx_logs:
-            df = pd.DataFrame(nginx_logs)
-            # Filter by time range
-            if 'timestamp' in df.columns:
-                df['timestamp'] = pd.to_datetime(df['timestamp'])
-                cutoff = datetime.now(self.timezone) - self.time_range
-                df = df[df['timestamp'] >= cutoff]
+        # Filter by time range
+        if 'timestamp' in df.columns:
+            df['timestamp'] = pd.to_datetime(df['timestamp'], errors='coerce')
+            df = df.dropna(subset=['timestamp'])
             
-            return df
+            cutoff = datetime.now(self.timezone) - self.time_range
+            df = df[df['timestamp'] >= cutoff]
+            
+            print(f"📅 Filtered to {len(df)} entries within time range")
         
-        return pd.DataFrame()
+        return df
+    
+    print("❌ No Nginx logs found or parsed")
+    return pd.DataFrame()
     
     def _parse_nginx_log(self, content: str) -> List[Dict]:
         """Parse Nginx combined log format"""
