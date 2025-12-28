@@ -361,6 +361,27 @@
             justify-content: space-between;
             align-items: center;
         }
+        
+        .file-icon {
+            font-size: 1.5rem;
+            color: var(--primary);
+            margin-right: 10px;
+        }
+        
+        .alert-success {
+            background-color: rgba(16, 185, 129, 0.1);
+            border-color: var(--success);
+        }
+        
+        .alert-warning {
+            background-color: rgba(245, 158, 11, 0.1);
+            border-color: var(--warning);
+        }
+        
+        .alert-danger {
+            background-color: rgba(239, 68, 68, 0.1);
+            border-color: var(--danger);
+        }
     </style>
 </head>
 <body>
@@ -452,6 +473,9 @@
 
             <!-- Main Content -->
             <div class="col-lg-10 col-md-9 main-content">
+                <!-- Alert Container -->
+                <div id="alertContainer"></div>
+
                 <!-- Loading Spinner -->
                 <div id="loadingSpinner" class="loading-spinner">
                     <div class="spinner"></div>
@@ -460,7 +484,7 @@
                 </div>
 
                 <!-- Quick Upload Button (Visible on Dashboard) -->
-                <div id="quickUploadSection" class="d-none" style="display: none;">
+                <div id="quickUploadSection" style="display: none;">
                     <div class="quick-upload-btn" data-bs-toggle="modal" data-bs-target="#uploadModal">
                         <div class="quick-upload-icon">
                             <i class="fas fa-cloud-upload-alt"></i>
@@ -1031,23 +1055,6 @@
         </div>
     </div>
 
-    <!-- Endpoint Detail Modal -->
-    <div class="modal fade modal-custom" id="endpointDetailModal" tabindex="-1">
-        <div class="modal-dialog modal-lg">
-            <div class="modal-content">
-                <div class="modal-header">
-                    <h5 class="modal-title"><i class="fas fa-sitemap me-2"></i>Endpoint Details</h5>
-                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
-                </div>
-                <div class="modal-body">
-                    <div id="endpointDetailContent">
-                        <!-- Will be populated by JavaScript -->
-                    </div>
-                </div>
-            </div>
-        </div>
-    </div>
-
     <!-- JavaScript Libraries -->
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
     <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
@@ -1071,6 +1078,7 @@
             // Handle WebSocket events
             socket.on('connect', function() {
                 console.log('Connected to dashboard server');
+                showAlert('Connected to server', 'success');
             });
             
             socket.on('status', function(data) {
@@ -1301,7 +1309,7 @@
             
             // Upload files
             $.ajax({
-                url: '/upload',
+                url: '/api/upload',
                 method: 'POST',
                 data: formData,
                 processData: false,
@@ -1521,8 +1529,6 @@
             $('#uploadProgressText').text(`${data.progress}% - ${data.filename || 'Uploading...'}`);
         }
         
-        // ... [rest of the existing functions remain the same, starting from line 250 in the original] ...
-        
         // Start new analysis (server path)
         function startAnalysis() {
             const logDir = $('#logDir').val();
@@ -1593,28 +1599,28 @@
             const cardsHtml = `
                 <div class="col-lg-3 col-md-6">
                     <div class="stat-card">
-                        <div class="stat-value critical">${summary.critical_count}</div>
+                        <div class="stat-value critical">${summary.critical_count || 0}</div>
                         <div class="stat-label">Critical Issues</div>
                         <small class="text-muted">Requires immediate attention</small>
                     </div>
                 </div>
                 <div class="col-lg-3 col-md-6">
                     <div class="stat-card">
-                        <div class="stat-value">${summary.suspicious_endpoints}</div>
+                        <div class="stat-value">${summary.suspicious_endpoints || 0}</div>
                         <div class="stat-label">Suspicious Endpoints</div>
                         <small class="text-muted">Potential abuse detected</small>
                     </div>
                 </div>
                 <div class="col-lg-3 col-md-6">
                     <div class="stat-card">
-                        <div class="stat-value">${summary.malicious_ips}</div>
+                        <div class="stat-value">${summary.malicious_ips || 0}</div>
                         <div class="stat-label">Malicious IPs</div>
                         <small class="text-muted">Block recommended</small>
                     </div>
                 </div>
                 <div class="col-lg-3 col-md-6">
                     <div class="stat-card">
-                        <div class="stat-value">${summary.total_data_exposure_gb.toFixed(1)} GB</div>
+                        <div class="stat-value">${(summary.total_data_exposure_gb || 0).toFixed(1)} GB</div>
                         <div class="stat-label">Data Exposure</div>
                         <small class="text-muted">Potential data leaks</small>
                     </div>
@@ -1626,19 +1632,26 @@
         
         // Update charts
         function updateCharts(dashboard) {
-            // Risk Distribution Chart
-            if (dashboard.risk_distribution) {
-                Plotly.newPlot('riskChart', JSON.parse(dashboard.risk_distribution));
-            }
-            
-            // Timeline Chart
-            if (dashboard.timeline) {
-                Plotly.newPlot('timelineChart', JSON.parse(dashboard.timeline));
-            }
-            
-            // Heatmap Chart
-            if (dashboard.endpoint_heatmap) {
-                Plotly.newPlot('heatmapChart', JSON.parse(dashboard.endpoint_heatmap));
+            try {
+                // Risk Distribution Chart
+                if (dashboard.risk_distribution) {
+                    const riskData = JSON.parse(dashboard.risk_distribution);
+                    Plotly.newPlot('riskChart', riskData.data, riskData.layout);
+                }
+                
+                // Timeline Chart
+                if (dashboard.timeline) {
+                    const timelineData = JSON.parse(dashboard.timeline);
+                    Plotly.newPlot('timelineChart', timelineData.data, timelineData.layout);
+                }
+                
+                // Heatmap Chart
+                if (dashboard.endpoint_heatmap) {
+                    const heatmapData = JSON.parse(dashboard.endpoint_heatmap);
+                    Plotly.newPlot('heatmapChart', heatmapData.data, heatmapData.layout);
+                }
+            } catch (error) {
+                console.error('Error updating charts:', error);
             }
         }
         
@@ -1651,9 +1664,9 @@
             suspiciousEndpoints.slice(0, 10).forEach(endpoint => {
                 endpointsHtml += `
                     <tr>
-                        <td>${endpoint.endpoint.substring(0, 50)}${endpoint.endpoint.length > 50 ? '...' : ''}</td>
-                        <td>${endpoint.total_requests}</td>
-                        <td><span class="risk-badge badge-${endpoint.risk_level.toLowerCase()}">${endpoint.risk_level}</span></td>
+                        <td>${endpoint.endpoint ? endpoint.endpoint.substring(0, 50) : 'Unknown'}${endpoint.endpoint && endpoint.endpoint.length > 50 ? '...' : ''}</td>
+                        <td>${endpoint.total_requests || 0}</td>
+                        <td><span class="risk-badge badge-${(endpoint.risk_level || 'low').toLowerCase()}">${endpoint.risk_level || 'LOW'}</span></td>
                     </tr>
                 `;
             });
@@ -1665,14 +1678,14 @@
             suspiciousEndpoints.forEach(endpoint => {
                 detailedEndpointsHtml += `
                     <tr>
-                        <td>${endpoint.endpoint}</td>
-                        <td>${endpoint.total_requests}</td>
-                        <td>${endpoint.unique_ips}</td>
-                        <td>${endpoint.total_data_mb.toFixed(2)} MB</td>
-                        <td>${endpoint.requests_per_minute.toFixed(1)}/min</td>
-                        <td><span class="risk-badge badge-${endpoint.risk_level.toLowerCase()}">${endpoint.risk_level}</span></td>
+                        <td>${endpoint.endpoint || 'Unknown'}</td>
+                        <td>${endpoint.total_requests || 0}</td>
+                        <td>${endpoint.unique_ips || 0}</td>
+                        <td>${endpoint.total_data_mb ? endpoint.total_data_mb.toFixed(2) : '0.00'} MB</td>
+                        <td>${endpoint.requests_per_minute ? endpoint.requests_per_minute.toFixed(1) : '0.0'}/min</td>
+                        <td><span class="risk-badge badge-${(endpoint.risk_level || 'low').toLowerCase()}">${endpoint.risk_level || 'LOW'}</span></td>
                         <td>
-                            <button class="btn btn-sm btn-outline-primary" onclick="showEndpointDetail('${endpoint.endpoint}')">
+                            <button class="btn btn-sm btn-outline-primary" onclick="showEndpointDetail('${endpoint.endpoint || ''}')">
                                 <i class="fas fa-info-circle"></i>
                             </button>
                         </td>
@@ -1689,9 +1702,9 @@
             maliciousIps.slice(0, 10).forEach(ip => {
                 ipsHtml += `
                     <tr>
-                        <td>${ip.ip}</td>
-                        <td>${ip.total_requests}</td>
-                        <td><span class="risk-badge badge-${ip.risk_level.toLowerCase()}">${ip.risk_level}</span></td>
+                        <td>${ip.ip || 'Unknown'}</td>
+                        <td>${ip.total_requests || 0}</td>
+                        <td><span class="risk-badge badge-${(ip.risk_level || 'low').toLowerCase()}">${ip.risk_level || 'LOW'}</span></td>
                     </tr>
                 `;
             });
@@ -1703,17 +1716,17 @@
             maliciousIps.forEach(ip => {
                 detailedIpsHtml += `
                     <tr>
-                        <td>${ip.ip}</td>
-                        <td>${ip.total_requests}</td>
-                        <td>${ip.request_rate_per_sec.toFixed(1)}/s</td>
-                        <td>${ip.unique_endpoints}</td>
-                        <td>${ip.not_found_requests}</td>
-                        <td><span class="risk-badge badge-${ip.risk_level.toLowerCase()}">${ip.risk_level}</span></td>
+                        <td>${ip.ip || 'Unknown'}</td>
+                        <td>${ip.total_requests || 0}</td>
+                        <td>${ip.request_rate_per_sec ? ip.request_rate_per_sec.toFixed(1) : '0.0'}/s</td>
+                        <td>${ip.unique_endpoints || 0}</td>
+                        <td>${ip.not_found_requests || 0}</td>
+                        <td><span class="risk-badge badge-${(ip.risk_level || 'low').toLowerCase()}">${ip.risk_level || 'LOW'}</span></td>
                         <td>
-                            <button class="btn btn-sm btn-outline-primary" onclick="showIpDetail('${ip.ip}')">
+                            <button class="btn btn-sm btn-outline-primary" onclick="showIpDetail('${ip.ip || ''}')">
                                 <i class="fas fa-info-circle"></i>
                             </button>
-                            <button class="btn btn-sm btn-outline-danger" onclick="blockIp('${ip.ip}')">
+                            <button class="btn btn-sm btn-outline-danger" onclick="blockIp('${ip.ip || ''}')">
                                 <i class="fas fa-ban"></i>
                             </button>
                         </td>
@@ -1732,11 +1745,11 @@
             let timelineHtml = '';
             
             timeline.slice(0, 20).forEach(event => {
-                const time = new Date(event.timestamp).toLocaleTimeString();
+                const time = event.timestamp ? new Date(event.timestamp).toLocaleTimeString() : 'Unknown time';
                 timelineHtml += `
                     <div class="timeline-item">
                         <div class="d-flex justify-content-between">
-                            <h6>${event.event_type.toUpperCase()}</h6>
+                            <h6>${(event.event_type || 'event').toUpperCase()}</h6>
                             <small class="text-muted">${time}</small>
                         </div>
                         <p class="mb-1">${event.message || event.endpoint || 'No details'}</p>
@@ -1752,20 +1765,24 @@
         function loadRecentAnalyses() {
             $.get('/api/recent-analyses', function(response) {
                 let html = '';
-                response.analyses.forEach(analysis => {
-                    const time = new Date(analysis.timestamp).toLocaleTimeString();
-                    html += `
-                        <div class="mb-2">
-                            <small class="d-block text-muted">${time}</small>
-                            <a href="#" class="text-primary" onclick="loadAnalysis('${analysis.id}')">
-                                ${analysis.log_dir || analysis.filename || 'Uploaded files'}
-                            </a>
-                            <small class="d-block">${analysis.findings_count} findings</small>
-                        </div>
-                    `;
-                });
+                if (response.analyses && response.analyses.length > 0) {
+                    response.analyses.forEach(analysis => {
+                        const time = analysis.timestamp ? new Date(analysis.timestamp).toLocaleTimeString() : 'Unknown time';
+                        html += `
+                            <div class="mb-2">
+                                <small class="d-block text-muted">${time}</small>
+                                <a href="#" class="text-primary" onclick="loadAnalysis('${analysis.id}')">
+                                    ${analysis.log_dir || analysis.filename || 'Uploaded files'}
+                                </a>
+                                <small class="d-block">${analysis.findings_count || 0} findings</small>
+                            </div>
+                        `;
+                    });
+                } else {
+                    html = '<small class="text-muted">No recent analyses</small>';
+                }
                 
-                $('#recentAnalysesList').html(html || '<small class="text-muted">No recent analyses</small>');
+                $('#recentAnalysesList').html(html);
             });
         }
         
@@ -1797,42 +1814,66 @@
                             <div class="col-md-6">
                                 <h6>Statistics</h6>
                                 <table class="table table-sm">
-                                    <tr><td>Total Requests</td><td>${endpointData.total_requests}</td></tr>
-                                    <tr><td>Unique IPs</td><td>${endpointData.unique_ips}</td></tr>
-                                    <tr><td>Data Transferred</td><td>${endpointData.total_data_mb.toFixed(2)} MB</td></tr>
-                                    <tr><td>Request Rate</td><td>${endpointData.requests_per_minute.toFixed(1)}/min</td></tr>
+                                    <tr><td>Total Requests</td><td>${endpointData.total_requests || 0}</td></tr>
+                                    <tr><td>Unique IPs</td><td>${endpointData.unique_ips || 0}</td></tr>
+                                    <tr><td>Data Transferred</td><td>${endpointData.total_data_mb ? endpointData.total_data_mb.toFixed(2) : '0.00'} MB</td></tr>
+                                    <tr><td>Request Rate</td><td>${endpointData.requests_per_minute ? endpointData.requests_per_minute.toFixed(1) : '0.0'}/min</td></tr>
                                 </table>
                             </div>
                             <div class="col-md-6">
                                 <h6>Risk Assessment</h6>
                                 <div class="mb-3">
-                                    <span class="risk-badge badge-${endpointData.risk_level.toLowerCase()}">
-                                        ${endpointData.risk_level}
+                                    <span class="risk-badge badge-${(endpointData.risk_level || 'low').toLowerCase()}">
+                                        ${endpointData.risk_level || 'LOW'}
                                     </span>
                                     <div class="mt-2">
-                                        <small>Risk Score: ${endpointData.risk_score}/100</small>
+                                        <small>Risk Score: ${endpointData.risk_score || 0}/100</small>
                                         <div class="progress" style="height: 10px;">
                                             <div class="progress-bar bg-${getRiskColor(endpointData.risk_level)}" 
-                                                 style="width: ${endpointData.risk_score}%"></div>
+                                                 style="width: ${endpointData.risk_score || 0}%"></div>
                                         </div>
                                     </div>
                                 </div>
                             </div>
                         </div>
-                        <h6 class="mt-3">Status Code Distribution</h6>
-                        <pre class="bg-dark p-2 rounded">${JSON.stringify(endpointData.status_codes, null, 2)}</pre>
+                        ${endpointData.status_codes ? `
+                            <h6 class="mt-3">Status Code Distribution</h6>
+                            <pre class="bg-dark p-2 rounded">${JSON.stringify(endpointData.status_codes, null, 2)}</pre>
+                        ` : ''}
                     `;
                     
-                    $('#endpointDetailContent').html(html);
-                    $('#endpointDetailModal').modal('show');
+                    // Create modal dynamically
+                    const modalHtml = `
+                        <div class="modal fade" id="endpointDetailModal" tabindex="-1">
+                            <div class="modal-dialog modal-lg">
+                                <div class="modal-content modal-custom">
+                                    <div class="modal-header">
+                                        <h5 class="modal-title"><i class="fas fa-sitemap me-2"></i>Endpoint Details</h5>
+                                        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                                    </div>
+                                    <div class="modal-body">
+                                        ${html}
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    `;
+                    
+                    // Remove existing modal if any
+                    $('#endpointDetailModal').remove();
+                    
+                    // Add new modal to body and show it
+                    $('body').append(modalHtml);
+                    const modal = new bootstrap.Modal(document.getElementById('endpointDetailModal'));
+                    modal.show();
                 }
             }
         }
         
         // Show IP detail
         function showIpDetail(ip) {
-            // Similar implementation to showEndpointDetail
             console.log('Show IP detail:', ip);
+            showAlert('IP detail feature coming soon!', 'info');
         }
         
         // Block IP
@@ -1845,7 +1886,7 @@
         
         // Export report
         function exportReport(format) {
-            if (currentAnalysis) {
+            if (currentAnalysis && currentAnalysis.analysis_id) {
                 window.location.href = `/api/export/${currentAnalysis.analysis_id}/${format}`;
             } else {
                 showAlert('No analysis data available to export', 'warning');
@@ -1854,7 +1895,7 @@
         
         // Update live alerts
         function updateLiveAlerts(data) {
-            const count = data.data?.critical_count || 0;
+            const count = data.critical_count || 0;
             $('#liveAlertCount').text(count);
             
             if (count > 0) {
@@ -1868,21 +1909,31 @@
         function showAlert(message, type) {
             const alertHtml = `
                 <div class="alert-custom alert-${type}">
-                    <i class="fas fa-${type === 'success' ? 'check-circle' : 'exclamation-triangle'} me-2"></i>
+                    <i class="fas fa-${getAlertIcon(type)} me-2"></i>
                     ${message}
                     <button type="button" class="btn-close btn-close-white float-end" onclick="$(this).parent().remove()"></button>
                 </div>
             `;
             
             // Prepend to main content
-            $('.main-content').prepend(alertHtml);
+            $('#alertContainer').html(alertHtml);
             
             // Auto-remove after 5 seconds
             setTimeout(() => {
-                $(`.alert-${type}`).fadeOut(300, function() {
-                    $(this).remove();
+                $('#alertContainer').fadeOut(300, function() {
+                    $(this).empty();
                 });
             }, 5000);
+        }
+        
+        function getAlertIcon(type) {
+            switch(type) {
+                case 'success': return 'check-circle';
+                case 'warning': return 'exclamation-triangle';
+                case 'danger': return 'times-circle';
+                case 'info': return 'info-circle';
+                default: return 'info-circle';
+            }
         }
         
         // Get risk color
